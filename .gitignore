@@ -1,0 +1,7 @@
+# Ignore raw data directory and all contents
+RAWDATA/
+MATLABDATA/
+.DS_Store
+*.asv
+eMove-WS2.mat
+

@@ -19,7 +19,7 @@ function [videoIDs, timeMatrix] = getStimVideoScheduling(folderName)
     % Get a list of Unity log files in the folder (alphabetically sorted)
     logFiles = dir(fullfile(folderName, '*.csv')); % Assuming log files are CSV
     if isempty(logFiles)
-        warninf('No Unity log files found in folder: %s', folderName);
+        warning('No Unity log files found in folder: %s', folderName);
         videoIDs = {};
         timeMatrix = [];
         return;

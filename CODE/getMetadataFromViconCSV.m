@@ -2,6 +2,11 @@ function metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder)
 % the metadata is on the first row of the CSV file, read it and parse by columns
 % input: fileName - string, path to the Vicon CSV file, comma separated
 % output: metaData - struct, with fields corresponding to metadata columns
+%
+% Notes:
+%   - Parses Vicon capture start timestamp into both time-of-day and seconds.
+%   - If a Unity folder is provided, computes per-video stim frame windows
+%     relative to Vicon capture start time.
 
 if ~exist('unityFolder', 'var')
     unityFolder = '';

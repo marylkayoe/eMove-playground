@@ -1,6 +1,10 @@
 function metrics = getTrajectoryFrequencyMetrics(trajOrSpeed, sampleRate, varargin)
 % getTrajectoryFrequencyMetrics - Frequency-domain analysis of a 3D trajectory or precomputed speed.
 %
+% APPROVAL-REQUIRED COMPUTATION:
+% Frequency settings here affect reported spectral results.
+% Do not change behavior without explicit project-owner approval.
+%
 %   metrics = getTrajectoryFrequencyMetrics(traj, sampleRate, 'bands', bands, ...)
 %
 % Inputs:

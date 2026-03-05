@@ -23,6 +23,7 @@ p = inputParser;
 addParameter(p, 'frameRange', [], @(x) isnumeric(x) && isvector(x) );
 addParameter(p, 'videoID', '', @ischar);
 addParameter(p, 'mocapMetaData', struct(), @isstruct);
+% Note: default clips first 5 seconds of each extracted segment.
 addParameter(p, 'CLIPSEC', 5, @(x) isnumeric(x) && isscalar(x) && x >= 0); % how much to clip from beginning of trajectory
 
 parse(p, varargin{:});
@@ -60,7 +61,7 @@ for m = 1:nRequestedMarkers
     % find the index of the specified marker
     markerIdx = find(strcmp(trialData.markerNames, thisRequestedMarker));
     if isempty(markerIdx)
-        warning('Marker name not found: %s', markerName);
+        warning('Marker name not found: %s', thisRequestedMarker);
         markerTrajectory = [];
     else
         markerTrajectory = squeeze(trialData.trajectoryData(frameRange, :, markerIdx));
@@ -79,5 +80,4 @@ if CLIPFRAMES > 0
 end 
 
 end
-
 

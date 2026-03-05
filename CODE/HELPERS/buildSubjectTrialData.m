@@ -1,6 +1,9 @@
 function trialData = buildSubjectTrialData(subjectFolder, varargin)
 % buildSubjectTrialData - Build and save trialData for a subject folder.
 %
+% Pipeline stage:
+%   Subject-level ingestion from raw CSV to one MATLAB struct ("trialData").
+%
 % subjectFolder: path containing subfolders 'mocap' and 'unitylogs'.
 % Optional name-value:
 %   'outputFolder'   - where to save .mat (default: subjectFolder/matlab)
@@ -9,7 +12,11 @@ function trialData = buildSubjectTrialData(subjectFolder, varargin)
 %   'TrajTypeRow'    - override traj type row (default 7)
 %   'HeaderRows'     - override header rows (default 8)
 %
-% Returns trialData and saves <subjectID>_mocap_<original>.mat
+% Returns:
+%   trialData struct in memory.
+%
+% Side effects:
+%   Saves <subjectID>_mocap_<original>.mat to outputFolder.
 
     p = inputParser;
     addRequired(p, 'subjectFolder', @(x) ischar(x) || isstring(x));

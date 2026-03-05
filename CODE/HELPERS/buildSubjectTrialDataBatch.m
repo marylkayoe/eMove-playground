@@ -1,12 +1,16 @@
 function results = buildSubjectTrialDataBatch(parentFolder, varargin)
 % buildSubjectTrialDataBatch - Build trialData for all subject folders in a parent directory.
 %
+% Pipeline stage:
+%   Batch ingestion orchestrator.
+%   Calls buildSubjectTrialData() per subject folder.
+%
 % Usage:
 %   results = buildSubjectTrialDataBatch('/path/to/study')
 %   results = buildSubjectTrialDataBatch('/path/to/study', 'dryRun', true)
 %
 % This function scans immediate subfolders of parentFolder (treated as
-% subject folders) and calls buildSubjectTrialData() for each one.
+% subject folders), applies filters, and calls buildSubjectTrialData().
 %
 % Default subject-folder rule:
 %   folder contains 'mocap', 'unitylogs', and 'matlab' subfolders

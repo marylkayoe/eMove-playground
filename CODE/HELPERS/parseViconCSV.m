@@ -1,6 +1,10 @@
 function trialData = parseViconCSV(dataFolder, fileName, varargin)
 % parseViconCSV - Parse a Vicon CSV file into a trialData struct (positions only).
 %
+% Scope:
+%   This function extracts marker POSITION channels and metadata.
+%   It does not compute derived motion metrics.
+%
 % Inputs:
 %   dataFolder - folder containing the CSV
 %   fileName   - CSV file name

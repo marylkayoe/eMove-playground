@@ -1,4 +1,8 @@
 function R = getMotionMetricsFromTrajectory(trajectory, varargin)
+    % APPROVAL-REQUIRED COMPUTATION:
+    % This function defines core motion metrics used by downstream analyses.
+    % Do not change numerical behavior without explicit project-owner approval.
+    
     % return various descriptive metrics from a single 3D trajectory
     % inputs
     %   trajectory - nFrames x 3 matrix of X,Y,Z positions

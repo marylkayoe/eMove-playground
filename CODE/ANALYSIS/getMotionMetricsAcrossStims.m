@@ -1,6 +1,10 @@
 function [results, summaryTable] = getMotionMetricsAcrossStims(trialData, markerLists, varargin)
 % getMotionMetricsAcrossStims - Compute motion metrics for marker groups across all stimuli.
 %
+% Pipeline stage:
+%   Per-subject aggregation layer.
+%   Iterates over (marker group x video) and collects metric outputs.
+%
 %   [results, summaryTable] = getMotionMetricsAcrossStims(trialData, markerLists, ...)
 %
 % Inputs:

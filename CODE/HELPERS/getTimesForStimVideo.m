@@ -10,8 +10,8 @@ function [startTimeSec, endTimeSec] = getTimesForStimVideo(videoID, unityFolder)
     videoIdx = find(strcmp(videoIDs, videoID));
     if isempty(videoIdx)
         warning('Video ID not found in Unity log files: %s', videoID);
-        startFrame = NaN;
-        endFrame = NaN;
+        startTimeSec = NaN;
+        endTimeSec = NaN;
         return;
     end
 

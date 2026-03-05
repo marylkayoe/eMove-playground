@@ -1,4 +1,8 @@
 function speedArray = getTrajectorySpeed(trajectoryData, FRAMERATE, speedWindow)
+    % APPROVAL-REQUIRED COMPUTATION:
+    % Changes to this function alter core speed values used across analyses.
+    % Do not modify behavior without explicit project-owner approval.
+    
     % Compute speed (mm/s) over a sliding window, vectorized for large datasets.
     % trajectoryData: nFrames x 3 positions; FRAMERATE: frames/sec; speedWindow: seconds.
 

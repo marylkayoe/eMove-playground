@@ -1,0 +1,89 @@
+# eMove Code Index
+
+This document maps the current MATLAB codebase so new contributors can quickly find the right file.
+
+## 1) Pipeline At A Glance
+
+1. Organize raw recordings into per-subject folders.
+2. Convert per-subject MoCap CSV into `trialData` MAT files.
+3. Run motion metrics across subjects/stimuli.
+4. Aggregate, normalize, and visualize results.
+
+## 2) Folder Map
+
+- `CODE/HELPERS/`
+  - Dataset organization and metadata helpers.
+  - Main files:
+    - `buildDatasetAssignments.m`
+    - `buildSubjectTrialData.m`
+    - `buildSubjectTrialDataBatch.m`
+    - `parseViconCSV.m`
+
+- `CODE/ANALYSIS/`
+  - Metric computation, aggregation, and statistical summaries.
+  - Main files:
+    - `runMotionMetricsBatch.m`
+    - `getMotionMetricsAcrossStims.m`
+    - `getMotionMetricsForMarkers.m`
+    - `getMotionMetricsFromTrajectory.m`
+
+- `CODE/PLOTTING/`
+  - Static plotting utilities and poster figures.
+
+- `CODE/PLOTTING/poster/gui/`
+  - Interactive exploration tools.
+
+## 3) Core Data Object (`trialData`)
+
+`trialData` is the shared object passed through analysis functions.
+
+Current expected fields:
+- `markerNames`: marker labels from Vicon CSV.
+- `trajectoryData`: `nFrames x 3 x nMarkers` position matrix.
+- `metaData`: recording metadata, including stimulus schedule (`videoIDs`, `stimScheduling`) when Unity logs are available.
+- `subjectID`: added by subject-level build scripts.
+
+## 4) Main Entry Points
+
+- Raw file assignment:
+  - `CODE/HELPERS/buildDatasetAssignments.m`
+- Subject MAT build:
+  - `CODE/HELPERS/buildSubjectTrialData.m`
+  - `CODE/HELPERS/buildSubjectTrialDataBatch.m`
+- Batch motion metrics:
+  - `CODE/ANALYSIS/runMotionMetricsBatch.m`
+- Higher-level summaries:
+  - `CODE/ANALYSIS/buildNormalizedMetricsBuckets.m`
+  - `CODE/ANALYSIS/collectSpeedByStimVideo.m`
+  - `CODE/ANALYSIS/computeKsDistancesFromResultsCell.m`
+
+## 5) Editing Rules For This Project
+
+- Keep code student-readable:
+  - Use clear variable names.
+  - Add short comments where logic is not obvious.
+  - Prefer explicit steps over compact one-liners when readability improves.
+
+- Do not change computation behavior without explicit approval:
+  - Speed, spectral, immobility, or other metric algorithms must not be modified unless approved.
+
+## 6) Guarded (Approval-Required) Algorithm Files
+
+These files contain computation logic and should be treated as approval-required for behavior changes:
+
+- `CODE/ANALYSIS/getTrajectorySpeed.m`
+- `CODE/ANALYSIS/getMotionMetricsFromTrajectory.m`
+- `CODE/ANALYSIS/getMotionMetricsForMarkers.m`
+- `CODE/ANALYSIS/getMotionMetricsAcrossStims.m`
+- `CODE/ANALYSIS/getTrajectoryFrequencyMetrics.m`
+- `CODE/ANALYSIS/computeStimDistanceWasserstein.m`
+- `CODE/ANALYSIS/computeKsDistancesFromResultsCell.m`
+
+## 7) Known Quirks (Current Behavior)
+
+- `CODE/getMarkerTrajectory.m`
+  - The optional input `'mocapMetaData'` is currently parsed but then overwritten by `trialData.metaData` internally.
+  - Default `'CLIPSEC'` is `5`, so extracted trajectories drop the first 5 seconds unless overridden.
+
+- `CODE/HELPERS/parseViconCSV.m`
+  - Assumes at least one column contains the label `Unlabeled`; if not present, column-range logic can fail.

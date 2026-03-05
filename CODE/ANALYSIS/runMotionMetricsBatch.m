@@ -1,6 +1,11 @@
 function resultsCell = runMotionMetricsBatch(folderPath, markerLists, varargin)
 % runMotionMetricsBatch - Run motion metrics across all MAT trial files in a folder.
 %
+% Pipeline stage:
+%   Batch orchestrator for metric computation.
+%   Computation details are delegated to getMotionMetricsAcrossStims()
+%   and lower-level metric functions.
+%
 %   resultsCell = runMotionMetricsBatch(folderPath, markerLists, ...)
 %
 % Inputs:

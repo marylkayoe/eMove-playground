@@ -1,6 +1,14 @@
 function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
 % buildDatasetAssignments Create a lookup table mapping raw files to subjects based on timestamps.
 %
+% Pipeline stage:
+%   RAW file organization only (no signal-level computation).
+%
+% Typical use:
+%   1) Run once to inspect assignment quality.
+%   2) Review rows with non-empty "note".
+%   3) Re-run with 'doCopy', true after verification.
+%
 % assignments = buildDatasetAssignments(sourceRoot, destRoot, 'doCopy', false)
 % - sourceRoot: path to HUMANMOCAP (containing MoCap_Data, Unity_Logs, etc.)
 % - destRoot:   path to reorganized dataset (used only for destination paths; no copies by default)
@@ -270,6 +278,7 @@ function rows = addRow(rows, sourcePath, modality, dt, subj, destPath, note)
 end
 
 function copyAssignments(tbl)
+    % Side effect: writes files into destination folders.
     for i = 1:height(tbl)
         src = tbl.sourcePath{i};
         dst = tbl.destPath{i};

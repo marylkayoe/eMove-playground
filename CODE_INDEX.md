@@ -22,6 +22,7 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `parseSelfReportBodyCSV.m`
     - `buildSelfReportTrialToUnityMap.m`
     - `normalizeSubjectID.m`
+    - `isHardwiredExcludedSubjectID.m`
 
 - `CODE/ANALYSIS/`
   - Metric computation, aggregation, and statistical summaries.
@@ -101,3 +102,6 @@ These files contain computation logic and should be treated as approval-required
 
 - `CODE/getStimVideoScheduling.m`
   - Logs are now ordered by parsed Unity start datetime (fallback: filename timestamp, then file modified time), not plain alphabetical file name order.
+
+- `CODE/HELPERS/buildSelfReportTrialToUnityMap.m`
+  - Mapping now anchors on the **last** `BASELINE` by default and deduplicates repeated post-baseline video IDs by keeping first occurrence.

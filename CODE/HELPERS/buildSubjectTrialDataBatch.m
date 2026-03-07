@@ -64,6 +64,14 @@ function results = buildSubjectTrialDataBatch(parentFolder, varargin)
     for i = 1:numel(names)
         name = names{i};
         fullPath = fullfile(parentFolder, name);
+        [isExcludedHardwired, subjNorm] = isHardwiredExcludedSubjectID(name);
+
+        if isExcludedHardwired
+            if p.Results.verbose
+                fprintf('Skipping hardwired excluded subject folder: %s\n', subjNorm);
+            end
+            continue;
+        end
 
         if ~isempty(explicitSubjects) && ~ismember(name, explicitSubjects)
             continue;

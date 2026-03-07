@@ -29,6 +29,12 @@ function trialData = buildSubjectTrialData(subjectFolder, varargin)
 
     subjectFolder = char(subjectFolder);
     subjID = extractSubjectID(subjectFolder);
+    [isExcludedHardwired, subjID] = isHardwiredExcludedSubjectID(subjID);
+    if isExcludedHardwired
+        error('buildSubjectTrialData:ExcludedSubject', ...
+            'Subject %s is hardwired excluded for the current dataset.', subjID);
+    end
+
     outputFolder = char(p.Results.outputFolder);
     if isempty(outputFolder)
         outputFolder = fullfile(subjectFolder, 'matlab');

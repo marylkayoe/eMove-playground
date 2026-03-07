@@ -45,6 +45,7 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
     end
 
     rows = [];
+    skipped = struct('unity', 0, 'unityPreBaseline', 0, 'mocap', 0, 'hr', 0, 'eda', 0);
 
     % 1) Mocap anchors
     mocapDir = fullfile(sourceRoot, 'MoCap_Data');
@@ -59,6 +60,7 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
         mocapEntries(end+1).start = dt; %#ok<AGROW>
         mocapEntries(end).path = fullfile(f.folder, f.name);
         mocapEntries(end).subject = ''; % will be filled from unity logs
+        mocapEntries(end).isExcluded = false;
     end
     if isempty(mocapEntries)
         warning('No mocap files found under %s', mocapDir);
@@ -79,22 +81,57 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
 
     % 2) Unity logs (carry subject IDs)
     unityDir = fullfile(sourceRoot, 'Unity_Logs', 'Logs');
+    if ~isfolder(unityDir)
+        unityDir = fullfile(sourceRoot, 'Unity_Logs');
+    end
     unityFiles = dir(fullfile(unityDir, '*.csv'));
+
+    % Determine per-subject last baseline time so pre-baseline recordings can be ignored.
+    unitySubj = strings(numel(unityFiles), 1);
+    unityDt = NaT(numel(unityFiles), 1);
+    unityIsBaseline = false(numel(unityFiles), 1);
+    for k = 1:numel(unityFiles)
+        [subjK, dtK, videoIDK] = parseUnityFile(unityFiles(k).name);
+        unitySubj(k) = string(subjK);
+        unityDt(k) = dtK;
+        unityIsBaseline(k) = strcmpi(videoIDK, 'BASELINE');
+    end
+
     for k = 1:numel(unityFiles)
         f = unityFiles(k);
-        [subj, dt, videoID] = parseUnityFile(f.name);
+        [subj, dt, videoID] = parseUnityFile(f.name); %#ok<ASGLU>
+
+        lastBaseline = getLastBaselineForSubject(subj, unitySubj, unityDt, unityIsBaseline);
+        if ~isnat(dt) && ~isnat(lastBaseline) && dt < lastBaseline
+            skipped.unityPreBaseline = skipped.unityPreBaseline + 1;
+            continue;
+        end
+
+        [isExcludedHardwired, subjNorm] = isHardwiredExcludedSubjectID(subj);
+        assignedSubj = subjNorm;
+
+        if isExcludedHardwired
+            if ~isnat(dt)
+                idx = findInterval(dt, mocapEntries);
+                if ~isempty(idx)
+                    mocapEntries(idx).subject = subjNorm;
+                    mocapEntries(idx).isExcluded = true;
+                end
+            end
+            skipped.unity = skipped.unity + 1;
+            continue;
+        end
+
         if isnat(dt)
             note = 'Could not parse datetime';
-            assignedSubj = subj;
         else
             idx = findInterval(dt, mocapEntries);
-            assignedSubj = subj;
             note = '';
             if isempty(idx)
                 note = 'No matching mocap interval';
             end
             if ~isempty(idx)
-                mocapEntries(idx).subject = subj; % set subject for that session
+                mocapEntries(idx).subject = subjNorm; % set subject for that session
             end
         end
         destPath = fullfile(destRoot, subjOrUnknown(assignedSubj), 'unitylogs', ...
@@ -104,6 +141,11 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
 
     % 3) Finalize mocap subjects (fill unknowns)
     for i = 1:numel(mocapEntries)
+        if mocapEntries(i).isExcluded
+            skipped.mocap = skipped.mocap + 1;
+            continue;
+        end
+
         subj = mocapEntries(i).subject;
         if isempty(subj)
             subj = 'UNKNOWN';
@@ -121,6 +163,10 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
         f = hrFiles(k);
         dt = parseMovesenseTime(f.name);
         [assignedSubj, note] = assignToInterval(dt, mocapEntries);
+        if strcmp(assignedSubj, 'EXCLUDED')
+            skipped.hr = skipped.hr + 1;
+            continue;
+        end
         destPath = fullfile(destRoot, subjOrUnknown(assignedSubj), 'hr', ...
             sprintf('%s_hr_%s', subjOrUnknown(assignedSubj), f.name));
         rows = addRow(rows, fullfile(f.folder, f.name), 'hr', dt, assignedSubj, destPath, note);
@@ -133,6 +179,10 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
         f = edaFiles(k);
         dt = parseShimmerTimestamp(fullfile(f.folder, f.name));
         [assignedSubj, note] = assignToInterval(dt, mocapEntries);
+        if strcmp(assignedSubj, 'EXCLUDED')
+            skipped.eda = skipped.eda + 1;
+            continue;
+        end
         destPath = fullfile(destRoot, subjOrUnknown(assignedSubj), 'eda', ...
             sprintf('%s_eda_%s', subjOrUnknown(assignedSubj), f.name));
         rows = addRow(rows, fullfile(f.folder, f.name), 'eda', dt, assignedSubj, destPath, note);
@@ -148,10 +198,22 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
         rows = addRow(rows, fullfile(f.folder, f.name), 'stim', NaT, 'SHARED', destPath, '');
     end
 
-    assignments = struct2table(rows);
+    if isempty(rows)
+        assignments = table();
+    else
+        assignments = struct2table(rows);
+    end
 
     if doCopy
         copyAssignments(assignments);
+    end
+
+    nSkipped = skipped.unity + skipped.unityPreBaseline + skipped.mocap + skipped.hr + skipped.eda;
+    if nSkipped > 0
+        warning('buildDatasetAssignments:FilesSkippedByRules', ...
+            ['Applied dataset rules: hardwired excluded subjects and pre-baseline trimming. ', ...
+             'Skipped: unityExcluded=%d, unityPreBaseline=%d, mocapExcluded=%d, hrExcluded=%d, edaExcluded=%d.'], ...
+            skipped.unity, skipped.unityPreBaseline, skipped.mocap, skipped.hr, skipped.eda);
     end
 end
 
@@ -177,9 +239,14 @@ function [subj, dt, videoID] = parseUnityFile(fname)
     if isempty(tok)
         return;
     end
-    subj = tok{1};
+    [subj, ~] = normalizeSubjectID(tok{1});
     dt = datetime(tok{2}, 'InputFormat', 'yyyy-MM-dd-HH-mm');
-    videoID = regexprep(tok{3}, '\s+', '_');
+    tail = char(string(tok{3}));
+    if contains(lower(tail), 'baseline')
+        videoID = 'BASELINE';
+    else
+        videoID = regexprep(tail, '\s+', '_');
+    end
 end
 
 function dt = parseMovesenseTime(fname)
@@ -255,6 +322,11 @@ function [subj, note] = assignToInterval(dt, intervals)
         note = 'No matching mocap interval';
         return;
     end
+    if isfield(intervals, 'isExcluded') && intervals(idx).isExcluded
+        subj = 'EXCLUDED';
+        note = 'Hardwired excluded subject interval';
+        return;
+    end
     subj = intervals(idx).subject;
     if strcmp(subj, 'UNKNOWN')
         note = 'Interval has unknown subject';
@@ -294,4 +366,15 @@ function copyAssignments(tbl)
         end
         copyfile(src, dst);
     end
+end
+
+function lastBaseline = getLastBaselineForSubject(subj, subjList, dtList, isBaselineList)
+% Return last baseline datetime for one subject, or NaT if absent.
+    lastBaseline = NaT;
+    mask = strcmpi(cellstr(subjList), subj) & isBaselineList & ~isnat(dtList);
+    if ~any(mask)
+        return;
+    end
+    baselineTimes = dtList(mask);
+    lastBaseline = max(baselineTimes);
 end

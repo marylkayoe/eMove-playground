@@ -116,3 +116,6 @@ Any new computed comparison metric should be implemented only after your explici
 3. Working mapping assumption:
 `G1..G15` correspond to per-subject Unity presentation order after `BASELINE`.
 4. HR/EDA ingestion must explicitly handle split recordings (multiple files per modality).
+5. If multiple baseline/demo blocks exist for a subject, use the **last** `BASELINE` as anchor and ignore earlier logs.
+6. If post-baseline Unity video IDs repeat, keep first chronological occurrence for mapping and flag repeats in QC.
+7. Current dataset-specific default exclusions: `JANNE`, `AS2302`, `XC1301`.

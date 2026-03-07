@@ -13,8 +13,10 @@ function mapTable = buildSelfReportTrialToUnityMap(unityFolder, varargin)
 %   'trialPrefix'            - default 'G'
 %   'nStimTrials'            - number of self-report stim blocks to map (default 15)
 %   'anchorVideoID'          - anchor event in Unity logs (default 'BASELINE')
+%   'anchorOccurrence'       - which anchor to use if repeated: 'last' (default) or 'first'
 %   'mapOnlyAfterAnchor'     - if true, map only logs after anchor (default true)
 %   'excludeBaselineEntries' - remove baseline entries from mapped candidates (default true)
+%   'deduplicateVideoIDs'    - if true, keep first occurrence of repeated video IDs (default true)
 %
 % Output columns:
 %   trialKey, presentationIndex, videoID, unityLogFileName, startSec, endSec
@@ -24,25 +26,34 @@ function mapTable = buildSelfReportTrialToUnityMap(unityFolder, varargin)
     addParameter(p, 'trialPrefix', 'G', @(x) ischar(x) || isstring(x));
     addParameter(p, 'nStimTrials', 15, @(x) isnumeric(x) && isscalar(x) && x >= 1);
     addParameter(p, 'anchorVideoID', 'BASELINE', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'anchorOccurrence', 'last', @(x) any(strcmpi(string(x), ["first","last"])));
     addParameter(p, 'mapOnlyAfterAnchor', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'excludeBaselineEntries', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'deduplicateVideoIDs', true, @(x) islogical(x) && isscalar(x));
     parse(p, unityFolder, varargin{:});
 
     unityFolder = char(string(p.Results.unityFolder));
     trialPrefix = char(string(p.Results.trialPrefix));
     nStimTrials = p.Results.nStimTrials;
     anchorVideoID = char(string(p.Results.anchorVideoID));
+    anchorOccurrence = lower(char(string(p.Results.anchorOccurrence)));
 
     [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(unityFolder);
 
     keepMask = true(numel(videoIDs), 1);
 
     if p.Results.mapOnlyAfterAnchor
-        anchorIdx = find(strcmpi(videoIDs, anchorVideoID), 1, 'first');
-        if isempty(anchorIdx)
+        anchorIdxAll = find(strcmpi(videoIDs, anchorVideoID));
+        if isempty(anchorIdxAll)
             warning('buildSelfReportTrialToUnityMap:AnchorMissing', ...
                 'Anchor videoID "%s" not found. Using full ordered log list.', anchorVideoID);
         else
+            if strcmp(anchorOccurrence, 'first')
+                anchorIdx = anchorIdxAll(1);
+            else
+                % Default: use the last baseline/demo anchor and ignore earlier blocks.
+                anchorIdx = anchorIdxAll(end);
+            end
             keepMask(1:anchorIdx) = false;
         end
     end
@@ -55,6 +66,24 @@ function mapTable = buildSelfReportTrialToUnityMap(unityFolder, varargin)
     candidateVideoIDs = videoIDs(keepMask);
     candidateTimes = timeMatrix(keepMask, :);
     candidateLogFiles = logFileNames(keepMask);
+
+    if p.Results.deduplicateVideoIDs
+        normVideoIDs = lower(string(candidateVideoIDs));
+        [~, firstOccurrenceIdx] = unique(normVideoIDs, 'stable');
+        dedupMask = false(numel(candidateVideoIDs), 1);
+        dedupMask(firstOccurrenceIdx) = true;
+
+        nRemoved = sum(~dedupMask);
+        if nRemoved > 0
+            warning('buildSelfReportTrialToUnityMap:DuplicateVideoIDs', ...
+                ['Removed %d duplicate post-anchor Unity logs by videoID ', ...
+                 '(kept first occurrence in chronological order).'], nRemoved);
+        end
+
+        candidateVideoIDs = candidateVideoIDs(dedupMask);
+        candidateTimes = candidateTimes(dedupMask, :);
+        candidateLogFiles = candidateLogFiles(dedupMask);
+    end
 
     nAvailable = numel(candidateVideoIDs);
     nMap = min(nStimTrials, nAvailable);

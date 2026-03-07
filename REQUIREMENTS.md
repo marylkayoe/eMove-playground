@@ -57,6 +57,9 @@ use full Unity window for each stimulus.
 `clipStartSec`, `clipEndSec`.
 6. Default trajectory clipping should be explicit and neutral:
 `clipStartSec = 0` unless a specific analysis overrides it.
+7. If multiple baseline/demo Unity blocks exist for a subject, segmentation anchor is the **last** `BASELINE` block.
+8. Unity logs before the last `BASELINE` are ignored for stimulus mapping.
+9. If post-baseline Unity video IDs repeat, keep only the first chronological occurrence by default and flag the repeats.
 
 ## 6) Data Model Strategy (v2)
 
@@ -77,6 +80,8 @@ Tier A (MoCap-only), Tier B (MoCap+Eye), Tier C (MoCap+Eye+HR/EDA subset).
 4. Subject/video inclusion should be user-controlled.
 5. Default selection is all subjects and all stimulus videos.
 6. HR and EDA modalities may be split into multiple files per subject; ingestion must support multi-file modality inventories.
+7. For the current raw dataset snapshot (2026-03-07), default exclude list is:
+`JANNE`, `AS2302`, `XC1301`.
 
 ## 8) QC Requirements
 
@@ -143,6 +148,7 @@ included subjects/videos, coding table selection, clip settings, QC thresholds.
 4. Formal self-report schema and ingestion mapping.
 5. Mapping from self-report trial labels (`G1..G15`, baseline/demo blocks) to actual stimulus video IDs and order.
 Current working assumption: map `G1..G15` to per-subject Unity presentation order after `BASELINE`, ordered by stimulus timestamps.
+6. For sessions with repeated post-baseline video IDs, only first chronological occurrence is used for `G1..G15` mapping.
 
 ## 15) Body-Part Grouping Requirements
 

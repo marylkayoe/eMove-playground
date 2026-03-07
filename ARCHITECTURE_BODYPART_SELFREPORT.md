@@ -2,6 +2,9 @@
 
 Date: 2026-03-07
 
+Related diagrams:
+See [ARCHITECTURE_CALL_GRAPHS.md](/Users/yoe/Documents/REPOS/eMove-playground/ARCHITECTURE_CALL_GRAPHS.md) for function-level call graphs.
+
 ## 1) What We Observed
 
 ### 1.1 Current eMove codebase

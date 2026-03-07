@@ -93,15 +93,17 @@ metaData.captureStartSeconds = tSeconds; % seconds since midnight
 % get stimulus scheduling and videoID info from unity log folder
 
 if ~isempty(unityFolder) && isfolder(unityFolder)
-    [videoIDs, timeMatrix] = getStimVideoScheduling(unityFolder);
+    [videoIDs, timeMatrix, unityLogFileNames] = getStimVideoScheduling(unityFolder);
     relativeVideoTimes = timeMatrix - metaData.captureStartSeconds;
     % use metaData.captureFrameRate to convert seconds to frames
     stimStartEndFrames = round(relativeVideoTimes * metaData.captureFrameRate);
     metaData.stimScheduling = stimStartEndFrames;
     metaData.videoIDs = videoIDs;
+    metaData.unityLogFileNames = unityLogFileNames;
 else
     metaData.stimScheduling = [];
     metaData.videoIDs = {};
+    metaData.unityLogFileNames = {};
 end
 
 metaData.markerNames = getMarkerNamesFromViconCSV(dataFolder, fileName);

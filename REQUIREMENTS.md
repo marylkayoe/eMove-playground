@@ -1,7 +1,8 @@
 # eMove Requirements
 
-Version: 1.0  
-Created: 2026-03-05
+Version: 1.1  
+Created: 2026-03-05  
+Updated: 2026-03-07
 
 ## 1) Project Aim
 
@@ -42,6 +43,7 @@ Use auxiliary modalities (EDA, HR, pupil size, saccades/eye movement signals) to
 6. `hr` and `eda` contain modality CSV recordings when available.
 7. Example Unity log filename:
 `AB1502_unitylog_PNr_AB1502_2025-08-14-12-29 x_3502.csv`.
+8. Subject ID matching must be case-insensitive and canonical storage should use uppercase IDs.
 
 ## 5) Segmentation And Time Reference
 
@@ -74,6 +76,7 @@ use full Unity window for each stimulus.
 Tier A (MoCap-only), Tier B (MoCap+Eye), Tier C (MoCap+Eye+HR/EDA subset).
 4. Subject/video inclusion should be user-controlled.
 5. Default selection is all subjects and all stimulus videos.
+6. HR and EDA modalities may be split into multiple files per subject; ingestion must support multi-file modality inventories.
 
 ## 8) QC Requirements
 
@@ -86,6 +89,7 @@ flag-only by default (no hard auto-exclusion).
 5. User decides exclusions through include/exclude lists.
 6. Sync mismatch warning tolerance is currently TBD and must remain configurable.
 7. HR/EDA/Eye missingness thresholds are currently TBD and must remain configurable.
+8. QC should explicitly report split modality file counts and ordering assumptions (for example HR/EDA in multiple pieces).
 
 ## 9) Coding Tables And Labels
 
@@ -99,8 +103,10 @@ single global coding table.
 ## 10) Self-Report Integration Status
 
 1. Self-report data exists (emotion ratings and body-location information) but schema/availability is currently messy.
-2. Self-report integration is deferred until collaborator-aligned format is defined.
-3. Codebase must include interface hooks for future self-report based coding personalization.
+2. Current available export (`Self-report-body.csv`) uses semicolon delimiters and repeated trial blocks with:
+`20x GEW ratings + activation body-map + deactivation body-map + free-text`.
+3. Body-map fields are serialized JSON-like coordinate traces and require parsing, validation, and normalization before use.
+4. Codebase must include interface hooks for future self-report based coding personalization.
 
 ## 11) Output Requirements
 
@@ -135,4 +141,27 @@ included subjects/videos, coding table selection, clip settings, QC thresholds.
 2. Baseline handling beyond explicit `BASELINE` segment (for the random initial no-video period).
 3. Practical missing-data thresholds per modality for hard exclusion rules (if ever enabled).
 4. Formal self-report schema and ingestion mapping.
+5. Mapping from self-report trial labels (`G1..G15`, baseline/demo blocks) to actual stimulus video IDs and order.
+Current working assumption: map `G1..G15` to per-subject Unity presentation order after `BASELINE`, ordered by stimulus timestamps.
 
+## 15) Body-Part Grouping Requirements
+
+1. The system must support marker analysis by selected body parts without requiring users to manually build ad-hoc cell arrays in each script.
+2. Body-part grouping must be driven by a readable, versioned definition source (for example a table/config file) that maps marker names to canonical body-part groups.
+3. Users must be able to:
+choose predefined group sets, include/exclude groups, and define custom groups for a run.
+4. Validation must detect:
+unknown marker names, duplicate marker assignment (if disallowed), empty groups, and unassigned markers.
+5. Group definitions must remain decoupled from metric computation code so grouping can evolve without rewriting analysis algorithms.
+6. Defaults should include a coarse canonical set aligned with existing analysis labels (for example head, torso, waist, left/right arms, left/right wrists, left/right legs).
+
+## 16) Body-Map Self-Report Integration Requirements
+
+1. Ingestion must parse both activation and deactivation body-map fields per trial and preserve raw payloads for traceability.
+2. Ingestion output must be per-subject and per-trial tidy records containing:
+subject ID, trial key, GEW vector, activation map payload, deactivation map payload, and free text.
+3. Subject IDs from self-report files must be normalized and QC-checked against mocap subject IDs.
+4. Missing or malformed self-report entries must be flagged (not silently dropped).
+5. The pipeline must support linking self-report trial records with motion-analysis stimulus segments via explicit mapping tables.
+6. Comparison analyses between reported body activation and micromotion changes are a planned extension and must remain optional.
+7. Any new computed comparison metric between self-report maps and motion features requires explicit owner approval before implementation.

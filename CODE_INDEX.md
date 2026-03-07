@@ -18,6 +18,10 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `buildSubjectTrialData.m`
     - `buildSubjectTrialDataBatch.m`
     - `parseViconCSV.m`
+    - `getSubjectModalityFileInventory.m`
+    - `parseSelfReportBodyCSV.m`
+    - `buildSelfReportTrialToUnityMap.m`
+    - `normalizeSubjectID.m`
 
 - `CODE/ANALYSIS/`
   - Metric computation, aggregation, and statistical summaries.
@@ -29,6 +33,8 @@ This document maps the current MATLAB codebase so new contributors can quickly f
 
 - `CODE/PLOTTING/`
   - Static plotting utilities and poster figures.
+  - Includes self-report body-map visualization:
+    - `plotSelfReportBodyMapsByVideo.m`
 
 - `CODE/PLOTTING/poster/gui/`
   - Interactive exploration tools.
@@ -42,6 +48,7 @@ Current expected fields:
 - `trajectoryData`: `nFrames x 3 x nMarkers` position matrix.
 - `metaData`: recording metadata, including stimulus schedule (`videoIDs`, `stimScheduling`) when Unity logs are available.
 - `subjectID`: added by subject-level build scripts.
+  - `metaData.modalityFileInventory`: per-modality source file inventory (helps with split HR/EDA files).
 
 ## 4) Main Entry Points
 
@@ -50,6 +57,10 @@ Current expected fields:
 - Subject MAT build:
   - `CODE/HELPERS/buildSubjectTrialData.m`
   - `CODE/HELPERS/buildSubjectTrialDataBatch.m`
+- Self-report compact conversion:
+  - `CODE/HELPERS/parseSelfReportBodyCSV.m`
+- Self-report to Unity order mapping:
+  - `CODE/HELPERS/buildSelfReportTrialToUnityMap.m`
 - Batch motion metrics:
   - `CODE/ANALYSIS/runMotionMetricsBatch.m`
 - Higher-level summaries:
@@ -87,3 +98,6 @@ These files contain computation logic and should be treated as approval-required
 
 - `CODE/HELPERS/parseViconCSV.m`
   - Assumes at least one column contains the label `Unlabeled`; if not present, column-range logic can fail.
+
+- `CODE/getStimVideoScheduling.m`
+  - Logs are now ordered by parsed Unity start datetime (fallback: filename timestamp, then file modified time), not plain alphabetical file name order.

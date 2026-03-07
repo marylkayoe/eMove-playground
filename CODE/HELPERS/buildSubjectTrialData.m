@@ -60,6 +60,9 @@ function trialData = buildSubjectTrialData(subjectFolder, varargin)
     % Add subject ID for traceability
     trialData.subjectID = subjID;
 
+    % Keep an inventory of source modality files (handles split HR/EDA files).
+    trialData.metaData.modalityFileInventory = getSubjectModalityFileInventory(subjectFolder);
+
     % Save to output
     if ~exist(outputFolder, 'dir')
         mkdir(outputFolder);
@@ -74,5 +77,13 @@ function subj = extractSubjectID(subjectFolder)
     [~, subj] = fileparts(subjectFolder);
     if isempty(subj)
         subj = 'UNKNOWN';
+        return;
+    end
+
+    [subjNorm, isValid] = normalizeSubjectID(subj);
+    if isValid
+        subj = subjNorm;
+    else
+        subj = upper(char(string(subj)));
     end
 end

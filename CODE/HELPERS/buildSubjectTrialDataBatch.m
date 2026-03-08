@@ -33,6 +33,7 @@ function results = buildSubjectTrialDataBatch(parentFolder, varargin)
 %       subjectFolder, status, outFile, message
 
     p = inputParser;
+    p.KeepUnmatched = true;
     addRequired(p, 'parentFolder', @(x) ischar(x) || isstring(x));
     addParameter(p, 'subjectFolders', {}, @(x) iscell(x) || isstring(x) || ischar(x));
     addParameter(p, 'includePattern', '', @(x) ischar(x) || isstring(x));

@@ -12,6 +12,8 @@ function trialData = parseViconCSV(dataFolder, fileName, varargin)
 %       'MarkerLabelRow' (default 4)
 %       'TrajTypeRow'    (default 7)
 %       'HeaderRows'     (default 8)
+%       'UnityFolder'    (default '')
+%       'UnityLogFilePaths' (default {})
 %
 % Output:
 %   trialData struct with fields:
@@ -25,12 +27,14 @@ function trialData = parseViconCSV(dataFolder, fileName, varargin)
     addParameter(p, 'TrajTypeRow', 7, @(x) isnumeric(x) && isscalar(x));
     addParameter(p, 'HeaderRows', 8, @(x) isnumeric(x) && isscalar(x));
     addParameter(p, 'UnityFolder', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'UnityLogFilePaths', {}, @(x) ischar(x) || isstring(x) || iscell(x));
     parse(p, varargin{:});
 
     MARKERLABELROW = p.Results.MarkerLabelRow; % Row number where marker labels are located
     TRAJTYPEROW = p.Results.TrajTypeRow;    % Row number where trajectory types (position or rotation) are located
     NHEADERROWS = p.Results.HeaderRows;    % Total number of header rows before data starts from row 9
     unityFolder = char(p.Results.UnityFolder);
+    unityLogFilePaths = p.Results.UnityLogFilePaths;
 
     % Full path to the input CSV file
     fullFilePath = fullfile(dataFolder, fileName);
@@ -42,7 +46,7 @@ function trialData = parseViconCSV(dataFolder, fileName, varargin)
     unlabeledIdx = find(contains(rawNames, 'Unlabeled', 'IgnoreCase', true));
     positionIdx = setdiff(positionIdx, unlabeledIdx); % Exclude unlabeled indices
     markerLabels = getMarkerNamesFromViconCSV(dataFolder, fileName);
-    metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder);
+    metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder, unityLogFilePaths);
 
     % Initialize variables
     nFrames = metaData.totalFramesInTake;

@@ -8,6 +8,7 @@ function [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(folderNam
     %   'trimPreBaseline'  - if true (default), drop logs before anchor baseline.
     %   'anchorVideoID'    - anchor event in Unity logs (default 'BASELINE').
     %   'anchorOccurrence' - 'last' (default) or 'first' if anchor repeats.
+    %   'logFilePaths'     - optional explicit Unity log file path list to use.
     %
     % Outputs:
     %   videoIDs     - Nx1 cell array of video IDs.
@@ -23,13 +24,20 @@ function [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(folderNam
     addParameter(p, 'trimPreBaseline', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'anchorVideoID', 'BASELINE', @(x) ischar(x) || isstring(x));
     addParameter(p, 'anchorOccurrence', 'last', @(x) any(strcmpi(string(x), ["first","last"])));
+    addParameter(p, 'logFilePaths', {}, @(x) ischar(x) || isstring(x) || iscell(x));
     parse(p, folderName, varargin{:});
 
     folderName = char(string(p.Results.folderName));
     anchorVideoID = char(string(p.Results.anchorVideoID));
     anchorOccurrence = lower(char(string(p.Results.anchorOccurrence)));
+    logFilePaths = p.Results.logFilePaths;
+    if ischar(logFilePaths) || isstring(logFilePaths)
+        logFilePaths = cellstr(string(logFilePaths));
+    else
+        logFilePaths = cellstr(string(logFilePaths));
+    end
 
-    if ~isfolder(folderName)
+    if isempty(logFilePaths) && ~isfolder(folderName)
         warning('Folder does not exist: %s', folderName);
         videoIDs = {};
         timeMatrix = [];
@@ -37,29 +45,64 @@ function [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(folderNam
         return;
     end
 
-    files = dir(fullfile(folderName, '*.csv'));
-    if isempty(files)
-        warning('No Unity log files found in folder: %s', folderName);
-        videoIDs = {};
-        timeMatrix = [];
-        logFileNames = {};
-        return;
+    if isempty(logFilePaths)
+        files = dir(fullfile(folderName, '*.csv'));
+        if isempty(files)
+            warning('No Unity log files found in folder: %s', folderName);
+            videoIDs = {};
+            timeMatrix = [];
+            logFileNames = {};
+            return;
+        end
+        fileNames = {files.name}';
+        logPaths = fullfile({files.folder}', {files.name}');
+        fileDatenums = [files.datenum]';
+    else
+        logPaths = logFilePaths(:);
+        fileNames = cell(size(logPaths));
+        fileDatenums = NaN(size(logPaths));
+        for i = 1:numel(logPaths)
+            pth = char(string(logPaths{i}));
+            if ~isfile(pth)
+                warning('Unity log file does not exist, skipping: %s', pth);
+                continue;
+            end
+            d = dir(pth);
+            [~, nm, ext] = fileparts(pth);
+            fileNames{i} = [nm, ext];
+            fileDatenums(i) = d.datenum;
+            logPaths{i} = pth;
+        end
+        keep = ~cellfun(@isempty, fileNames);
+        logPaths = logPaths(keep);
+        fileNames = fileNames(keep);
+        fileDatenums = fileDatenums(keep);
+
+        if isempty(logPaths)
+            warning('No valid Unity log file paths were provided.');
+            videoIDs = {};
+            timeMatrix = [];
+            logFileNames = {};
+            return;
+        end
     end
 
-    n = numel(files);
+    n = numel(logPaths);
     rows = struct('videoID', {}, 'startSec', {}, 'endSec', {}, ...
         'startAbs', {}, 'fileName', {});
 
     for i = 1:n
-        logFileName = files(i).name;
-        unityMetaData = getMetadataFromUnityLog(folderName, logFileName);
+        logFilePath = char(string(logPaths{i}));
+        [logDir, logFileName, logExt] = fileparts(logFilePath);
+        logFileName = [logFileName, logExt];
+        unityMetaData = getMetadataFromUnityLog(logDir, logFileName);
 
         row = struct();
         row.videoID = '';
         row.startSec = NaN;
         row.endSec = NaN;
         row.startAbs = NaT;
-        row.fileName = logFileName;
+        row.fileName = fileNames{i};
 
         if isfield(unityMetaData, 'videoID')
             row.videoID = unityMetaData.videoID;
@@ -81,7 +124,7 @@ function [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(folderNam
         end
 
         if isnat(row.startAbs)
-            row.startAbs = localParseStartFromFileName(logFileName);
+            row.startAbs = localParseStartFromFileName(row.fileName);
         end
 
         rows(i,1) = row; %#ok<AGROW>
@@ -90,7 +133,9 @@ function [videoIDs, timeMatrix, logFileNames] = getStimVideoScheduling(folderNam
     T = struct2table(rows);
     hasAbs = ~isnat(T.startAbs);
     fallbackAbs = NaT(height(T),1);
-    fallbackAbs(~hasAbs) = datetime(files(~hasAbs).datenum, 'ConvertFrom', 'datenum');
+    if any(~hasAbs)
+        fallbackAbs(~hasAbs) = datetime(fileDatenums(~hasAbs), 'ConvertFrom', 'datenum');
+    end
     T.sortAbs = T.startAbs;
     T.sortAbs(~hasAbs) = fallbackAbs(~hasAbs);
     T = sortrows(T, {'sortAbs','fileName'});

@@ -5,6 +5,7 @@
 %   1) Runs prescreen assignment and saves master file list CSV.
 %   2) Optionally copies files into per-subject layout.
 %   3) Optionally builds per-subject trialData MAT files.
+%   4) Optionally builds trialData directly from manifest (no copy workflow).
 %
 % Notes:
 % - Hardwired exclusions are applied by project code:
@@ -25,6 +26,9 @@ doCopy = false;
 
 % Set true to run trialData MAT building after copy.
 runBatchBuild = false;
+
+% Set true to build trialData directly from manifest without copying files.
+runBatchBuildFromManifest = true;
 
 %% Path Setup
 if ~isfolder(repoRoot)
@@ -78,6 +82,22 @@ else
     fprintf('\n[3/3] Skipped trialData build stage (runBatchBuild=false).\n');
 end
 
+%% 4) Optional trialData Build (Manifest-Only, No Copy)
+if runBatchBuildFromManifest
+    fprintf('\n[4/4] Building trialData MAT files from manifest (no copy)...\n');
+    manifestCsv = previewCsv;
+    resultsManifest = buildSubjectTrialDataBatchFromManifest(manifestCsv, ...
+        'outputRoot', fullfile(destRoot, 'matlab_from_manifest'), ...
+        'verbose', true, ...
+        'continueOnError', true);
+    resultsManifestCsv = fullfile(destRoot, 'trialdata_build_results_manifest.csv');
+    writetable(resultsManifest, resultsManifestCsv);
+    fprintf('Saved: %s\n', resultsManifestCsv);
+    fprintf('Rows: %d\n', height(resultsManifest));
+else
+    fprintf('\n[4/4] Skipped manifest-only trialData build stage (runBatchBuildFromManifest=false).\n');
+end
+
 fprintf('\nDone.\n');
 
 %% Local Helpers
@@ -102,4 +122,3 @@ function ensureMatlabSubfolders(destRoot)
         end
     end
 end
-

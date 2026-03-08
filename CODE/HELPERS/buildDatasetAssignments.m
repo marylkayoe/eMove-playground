@@ -15,6 +15,8 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
 % - Optional name-value:
 %       'doCopy' (false)  : copy files into destRoot following the per-subject layout
 %       'sharedStimPath'  : path for shared stim videos (default: fullfile(destRoot,'stimvideos'))
+%       'reassignUnknownToNextKnown' (true) : remap short UNKNOWN pre-session anchors
+%       'maxUnknownLeadMinutes' (90) : max lead time for UNKNOWN->next known remap
 %
 % Output table columns:
 %   sourcePath       - full path of the raw file
@@ -28,18 +30,24 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
 %   - Mocap files define session anchors (one session per subject).
 %   - Unity logs within a mocap interval carry the subject ID; that ID is assigned to the mocap session.
 %   - HR/EDA files are assigned to the mocap interval whose start is closest prior on the same date.
+%   - Optional cleanup: short same-day UNKNOWN intervals immediately before a known mocap start
+%     are reassigned to that known subject (typical stop/restart recording pattern).
 
     p = inputParser;
     addRequired(p, 'sourceRoot', @(x) ischar(x) || isstring(x));
     addRequired(p, 'destRoot', @(x) ischar(x) || isstring(x));
     addParameter(p, 'doCopy', false, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'sharedStimPath', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'reassignUnknownToNextKnown', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'maxUnknownLeadMinutes', 90, @(x) isnumeric(x) && isscalar(x) && x > 0);
     parse(p, sourceRoot, destRoot, varargin{:});
 
     doCopy = p.Results.doCopy;
     sourceRoot = char(sourceRoot);
     destRoot = char(destRoot);
     sharedStimPath = char(p.Results.sharedStimPath);
+    reassignUnknownToNextKnown = p.Results.reassignUnknownToNextKnown;
+    maxUnknownLeadMinutes = double(p.Results.maxUnknownLeadMinutes);
     if isempty(sharedStimPath)
         sharedStimPath = fullfile(destRoot, 'stimvideos');
     end
@@ -202,6 +210,15 @@ function assignments = buildDatasetAssignments(sourceRoot, destRoot, varargin)
         assignments = table();
     else
         assignments = struct2table(rows);
+        if reassignUnknownToNextKnown
+            [assignments, nUnknownReassigned] = reassignUnknownRowsToNextKnownMocap(assignments, maxUnknownLeadMinutes);
+            if nUnknownReassigned > 0
+                warning('buildDatasetAssignments:UnknownReassigned', ...
+                    ['Reassigned %d UNKNOWN rows to next known mocap subject ', ...
+                     '(same day, <= %.0f min lead).'], ...
+                    nUnknownReassigned, maxUnknownLeadMinutes);
+            end
+        end
     end
 
     if doCopy
@@ -377,4 +394,114 @@ function lastBaseline = getLastBaselineForSubject(subj, subjList, dtList, isBase
     end
     baselineTimes = dtList(mask);
     lastBaseline = max(baselineTimes);
+end
+
+function [tbl, nChanged] = reassignUnknownRowsToNextKnownMocap(tbl, maxLeadMinutes)
+% Reassign UNKNOWN rows when they are short pre-session anchors before known mocap.
+    nChanged = 0;
+    if isempty(tbl)
+        return;
+    end
+    needed = {'modality', 'parsedTimestamp', 'assignedSubject', 'note'};
+    if ~all(ismember(needed, tbl.Properties.VariableNames))
+        return;
+    end
+
+    modality = string(tbl.modality);
+    subj = upper(string(tbl.assignedSubject));
+    note = string(tbl.note);
+    ts = tbl.parsedTimestamp;
+
+    mocapMask = modality == "mocap" & ~isnat(ts);
+    if ~any(mocapMask)
+        return;
+    end
+
+    mocapIdx = find(mocapMask);
+    [~, order] = sort(ts(mocapMask));
+    mocapIdx = mocapIdx(order);
+
+    mapStart = NaT(0, 1);
+    mapEnd = NaT(0, 1);
+    mapSubject = strings(0, 1);
+    for ii = 1:(numel(mocapIdx)-1)
+        i = mocapIdx(ii);
+        if subj(i) ~= "UNKNOWN"
+            continue;
+        end
+
+        nextKnown = NaN;
+        for jj = (ii+1):numel(mocapIdx)
+            j = mocapIdx(jj);
+            if subj(j) ~= "UNKNOWN" && subj(j) ~= "SHARED" && strlength(subj(j)) > 0
+                nextKnown = j;
+                break;
+            end
+        end
+        if isnan(nextKnown)
+            continue;
+        end
+
+        t0 = ts(i);
+        t1 = ts(nextKnown);
+        if isnat(t0) || isnat(t1) || t1 <= t0
+            continue;
+        end
+        sameDay = dateshift(t0, 'start', 'day') == dateshift(t1, 'start', 'day');
+        if ~sameDay
+            continue;
+        end
+        if minutes(t1 - t0) > maxLeadMinutes
+            continue;
+        end
+
+        mapStart(end+1, 1) = t0; %#ok<AGROW>
+        mapEnd(end+1, 1) = t1; %#ok<AGROW>
+        mapSubject(end+1, 1) = subj(nextKnown); %#ok<AGROW>
+    end
+
+    if isempty(mapStart)
+        return;
+    end
+
+    changedMask = false(height(tbl), 1);
+    for r = 1:height(tbl)
+        if subj(r) ~= "UNKNOWN" || isnat(ts(r))
+            continue;
+        end
+        for m = 1:numel(mapStart)
+            if ts(r) >= mapStart(m) && ts(r) < mapEnd(m)
+                subj(r) = mapSubject(m);
+                note(r) = appendNote(note(r), sprintf( ...
+                    'Reassigned from UNKNOWN to %s (pre-session restart window).', ...
+                    mapSubject(m)));
+                changedMask(r) = true;
+                break;
+            end
+        end
+    end
+
+    if any(changedMask)
+        if iscell(tbl.assignedSubject)
+            tbl.assignedSubject = cellstr(subj);
+        else
+            tbl.assignedSubject = subj;
+        end
+        if iscell(tbl.note)
+            tbl.note = cellstr(note);
+        else
+            tbl.note = note;
+        end
+        nChanged = nnz(changedMask);
+    end
+end
+
+function out = appendNote(existing, extra)
+    existing = strtrim(char(string(existing)));
+    extra = strtrim(char(string(extra)));
+    if isempty(existing)
+        out = string(extra);
+    else
+        out = string(sprintf('%s | %s', existing, extra));
+    end
 end

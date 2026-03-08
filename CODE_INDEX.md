@@ -17,8 +17,14 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `buildDatasetAssignments.m`
     - `buildSubjectTrialData.m`
     - `buildSubjectTrialDataBatch.m`
+    - `buildSubjectTrialDataFromManifest.m`
+    - `buildSubjectTrialDataBatchFromManifest.m`
     - `parseViconCSV.m`
     - `getSubjectModalityFileInventory.m`
+    - `loadUnityEyeLogCSV.m`
+    - `loadShimmerEDACSV.m`
+    - `loadMovesenseECGCSV.m`
+    - `loadModalitySignalsFromInventory.m`
     - `parseSelfReportBodyCSV.m`
     - `buildSelfReportTrialToUnityMap.m`
     - `normalizeSubjectID.m`
@@ -50,6 +56,8 @@ Current expected fields:
 - `metaData`: recording metadata, including stimulus schedule (`videoIDs`, `stimScheduling`) when Unity logs are available.
 - `subjectID`: added by subject-level build scripts.
   - `metaData.modalityFileInventory`: per-modality source file inventory (helps with split HR/EDA files).
+  - `metaData.modalitySignalsLoaded`: true only when modality CSVs are parsed into memory.
+- `modalityData` (optional): parsed Unity/EDA/HR tables when `loadModalitySignals=true`.
 
 ## 4) Main Entry Points
 
@@ -58,6 +66,13 @@ Current expected fields:
 - Subject MAT build:
   - `CODE/HELPERS/buildSubjectTrialData.m`
   - `CODE/HELPERS/buildSubjectTrialDataBatch.m`
+  - `CODE/HELPERS/buildSubjectTrialDataFromManifest.m`
+  - `CODE/HELPERS/buildSubjectTrialDataBatchFromManifest.m`
+- Modality parsing (no metrics):
+  - `CODE/HELPERS/loadUnityEyeLogCSV.m`
+  - `CODE/HELPERS/loadShimmerEDACSV.m`
+  - `CODE/HELPERS/loadMovesenseECGCSV.m`
+  - `CODE/HELPERS/loadModalitySignalsFromInventory.m`
 - Self-report compact conversion:
   - `CODE/HELPERS/parseSelfReportBodyCSV.m`
 - Self-report to Unity order mapping:
@@ -105,3 +120,6 @@ These files contain computation logic and should be treated as approval-required
 
 - `CODE/HELPERS/buildSelfReportTrialToUnityMap.m`
   - Mapping now anchors on the **last** `BASELINE` by default and deduplicates repeated post-baseline video IDs by keeping first occurrence.
+
+- `CODE/HELPERS/buildDatasetAssignments.m`
+  - Adds optional cleanup to reassign short same-day `UNKNOWN` pre-session rows to the next known mocap subject.

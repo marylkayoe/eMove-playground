@@ -1,4 +1,4 @@
-function metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder)
+function metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder, unityLogFilePaths)
 % the metadata is on the first row of the CSV file, read it and parse by columns
 % input: fileName - string, path to the Vicon CSV file, comma separated
 % output: metaData - struct, with fields corresponding to metadata columns
@@ -10,6 +10,9 @@ function metaData = getMetadataFromViconCSV(dataFolder, fileName, unityFolder)
 
 if ~exist('unityFolder', 'var')
     unityFolder = '';
+end
+if ~exist('unityLogFilePaths', 'var')
+    unityLogFilePaths = {};
 end
 
 % check the file exists in the specified folder
@@ -92,8 +95,10 @@ metaData.captureStartSeconds = tSeconds; % seconds since midnight
 
 % get stimulus scheduling and videoID info from unity log folder
 
-if ~isempty(unityFolder) && isfolder(unityFolder)
-    [videoIDs, timeMatrix, unityLogFileNames] = getStimVideoScheduling(unityFolder);
+if (~isempty(unityFolder) && isfolder(unityFolder)) || ~isempty(unityLogFilePaths)
+    [videoIDs, timeMatrix, unityLogFileNames] = getStimVideoScheduling( ...
+        unityFolder, ...
+        'logFilePaths', unityLogFilePaths);
     relativeVideoTimes = timeMatrix - metaData.captureStartSeconds;
     % use metaData.captureFrameRate to convert seconds to frames
     stimStartEndFrames = round(relativeVideoTimes * metaData.captureFrameRate);

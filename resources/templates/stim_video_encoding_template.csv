@@ -1,0 +1,18 @@
+videoID,emotionTag,emotionCategory,valenceLabel,arousalLabel,isBaseline,include,notes
+BASELINE,BASELINE,,,,1,1,No self-report expected for baseline
+0302,NEUTRAL,,,0,1,
+0602,DISGUST,,,,0,1,
+0806,X,,,,0,1,
+1007,X,,,,0,1,
+1502,X,,,,0,1,
+2501,X,,,,0,1,
+2704,X,,,,0,1,
+3001,AMUSEMENT,,,,0,1,
+3502,X,,,,0,1,
+4903,JOY,,,,0,1,
+5102,SAD,,,,0,1,
+5303,X,,,,0,1,
+6201,X,,,,0,1,
+6611,X,,,,0,1,
+6906,X,,,,0,1,
+7405,X,,,,0,1,

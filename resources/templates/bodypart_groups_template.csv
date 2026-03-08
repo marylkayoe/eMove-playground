@@ -1,0 +1,8 @@
+... hogroupName,markerCount,markerList
+OTHER,39,Skeleton 001;Ab;Neck;LIndex1;LIndex2;LIndex3;LMiddle1;LMiddle2;LMiddle3;LRing1;LRing2;LRing3;LPinky1;LPinky2;LPinky3;RIndex1;RIndex2;RIndex3;RMiddle1;RMiddle2;RMiddle3;RRing1;RRing2;RRing3;RPinky1;RPinky2;RPinky3;BackTop;BackLeft;BackRight;LPinky;LIndex;RPinky;RIndex;WaistLFront;WaistLBack;WaistCBack;WaistRBack;WaistRFront
+TORSO,3,Chest;ChestTop;ChestLow
+HEAD,5,Head;HeadFront;HeadLeft;HeadTop;HeadRight
+UPPER_LIMB_L,15,LShoulder;LUArm;LFArm;LHand;LThumb1;LThumb2;LThumb3;LShoulderBack;LShoulderTop;LUArmHigh;LElbowOut;LWristOut;LHandOut;LHandIn;LThumb
+UPPER_LIMB_R,15,RShoulder;RUArm;RFArm;RHand;RThumb1;RThumb2;RThumb3;RShoulderBack;RShoulderTop;RUArmHigh;RElbowOut;RWristOut;RHandOut;RHandIn;RThumb
+LOWER_LIMB_L,12,LThigh;LShin;LFoot;LToe;LThighFront;LThighSide;LKneeOut;LAnkleOut;LHeel;LToeIn;LToeTip;LToeOut
+LOWER_LIMB_R,12,RThigh;RShin;RFoot;RToe;RThighFront;RThighSide;RKneeOut;RAnkleOut;RHeel;RToeIn;RToeTip;RToeOut

@@ -25,6 +25,11 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `loadShimmerEDACSV.m`
     - `loadMovesenseECGCSV.m`
     - `loadModalitySignalsFromInventory.m`
+    - `createStimEncodingTemplateFromManifest.m`
+    - `createBodypartGroupingTemplateFromTrialData.m`
+    - `launchBodypartGroupingHelper.m`
+    - `loadBodypartGroupingCSV.m`
+    - `buildMarkerGroupsFromAssignmentTable.m`
     - `parseSelfReportBodyCSV.m`
     - `buildSelfReportTrialToUnityMap.m`
     - `normalizeSubjectID.m`
@@ -73,6 +78,15 @@ Current expected fields:
   - `CODE/HELPERS/loadShimmerEDACSV.m`
   - `CODE/HELPERS/loadMovesenseECGCSV.m`
   - `CODE/HELPERS/loadModalitySignalsFromInventory.m`
+- Template generation for testing:
+  - `CODE/HELPERS/createStimEncodingTemplateFromManifest.m`
+  - `CODE/HELPERS/createBodypartGroupingTemplateFromTrialData.m`
+  - `CODE/HELPERS/launchBodypartGroupingHelper.m`
+  - `CODE/HELPERS/loadBodypartGroupingCSV.m`
+  - `CODE/HELPERS/buildMarkerGroupsFromAssignmentTable.m`
+  - `scripts/generate_testing_templates.m`
+  - `scripts/launch_bodypart_grouping_helper.m`
+  - `scripts/run_testing_smoke.m`
 - Self-report compact conversion:
   - `CODE/HELPERS/parseSelfReportBodyCSV.m`
 - Self-report to Unity order mapping:

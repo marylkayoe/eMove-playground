@@ -26,7 +26,8 @@ Use auxiliary modalities (EDA, HR, pupil size, saccades/eye movement signals) to
 
 1. One subject is recorded once (single session per subject).
 2. Session contains one continuous mocap recording.
-3. Session includes one explicit `BASELINE` period and 16 immersive stimulus videos.
+3. Session includes 16 total segments:
+one explicit `BASELINE` period and 15 post-baseline immersive stimulus videos.
 4. Each stimulus video duration is 30 seconds.
 5. Stimulus order is randomized.
 6. No break structure is assumed for analysis purposes at this stage.
@@ -112,6 +113,8 @@ single global coding table.
 `20x GEW ratings + activation body-map + deactivation body-map + free-text`.
 3. Body-map fields are serialized JSON-like coordinate traces and require parsing, validation, and normalization before use.
 4. Codebase must include interface hooks for future self-report based coding personalization.
+5. Raw self-report input (`Self-report-body.csv`) is treated as immutable raw data and must stay in raw-data storage, not inside this repository.
+6. Parsed self-report artifacts (for example compact MAT/CSV outputs) are treated as derived data and must be written to external processed-data folders, not committed to this repository.
 
 ## 11) Output Requirements
 
@@ -124,6 +127,7 @@ parameters used, subject counts per condition, modality availability summary.
 5. Each analysis output must include provenance:
 `gitCommitHash`, `gitBranch`, `analysisTimestamp`, `schemaVersion`.
 6. Outputs should support trace-back to exact code/data assumptions used.
+7. Generated outputs from raw data ingestion (including parsed self-report compact files) must be stored outside the repository in versioned processed-data paths.
 
 ## 12) Readability And Governance Requirements
 

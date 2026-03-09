@@ -99,7 +99,7 @@ Any new computed comparison metric should be implemented only after your explici
 
 1. `Self-report-body.csv` includes likely pilot/test IDs (`Janne`, `asdfasd`, mixed-case IDs).
 2. Body-map fields vary between empty, `[]`, and long coordinate arrays.
-3. Trial blocks appear to be 15 (`G1..G15`) in this export, while your experiment description includes 16 videos.
+3. Trial blocks appear to be 15 (`G1..G15`) in this export, which aligns with the canonical design of 15 post-baseline stimuli plus 1 baseline segment (16 total segments).
 4. Current grouping in eMove is flexible but brittle because definitions are not centralized.
 
 ## 5) Open Questions To Resolve Before Coding Comparison Metrics

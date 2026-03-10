@@ -30,6 +30,7 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `launchBodypartGroupingHelper.m`
     - `loadBodypartGroupingCSV.m`
     - `buildMarkerGroupsFromAssignmentTable.m`
+    - `buildSubjectSessionTimeline.m`
     - `parseSelfReportBodyCSV.m`
     - `buildSelfReportTrialToUnityMap.m`
     - `normalizeSubjectID.m`
@@ -47,6 +48,8 @@ This document maps the current MATLAB codebase so new contributors can quickly f
   - Static plotting utilities and poster figures.
   - Includes self-report body-map visualization:
     - `plotSelfReportBodyMapsByVideo.m`
+  - Includes subject session-structure visualization:
+    - `plotSubjectSessionTimeline.m`
 
 - `CODE/PLOTTING/poster/gui/`
   - Interactive exploration tools.
@@ -87,6 +90,7 @@ Current expected fields:
   - `scripts/generate_testing_templates.m`
   - `scripts/launch_bodypart_grouping_helper.m`
   - `scripts/run_testing_smoke.m`
+  - `scripts/plot_session_timeline_batch.m`
 - Self-report compact conversion:
   - `CODE/HELPERS/parseSelfReportBodyCSV.m`
 - Self-report to Unity order mapping:

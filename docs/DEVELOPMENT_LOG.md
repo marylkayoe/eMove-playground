@@ -13,6 +13,8 @@ This document tracks project state, implementation decisions, and validation run
 - Self-report storage policy is documented:
   - raw `Self-report-body.csv` stays in raw-data storage
   - parsed/derived self-report artifacts stay outside this repository
+- Added subject-level session timeline visualization utilities to inspect
+  stimulus ordering and waiting/gap durations from mocap/unity timestamps.
 
 ### Documentation Updates (latest pass)
 - Updated canonical session wording in:
@@ -57,6 +59,20 @@ This document tracks project state, implementation decisions, and validation run
   - Missing grouped markers: `0` subjects
   - Modality load errors: `0` subjects
   - Smoke test completed successfully
+
+#### 4) Session timeline visualization run
+- New helper/plot/script added:
+  - `CODE/HELPERS/buildSubjectSessionTimeline.m`
+  - `CODE/PLOTTING/plotSubjectSessionTimeline.m`
+  - `scripts/plot_session_timeline_batch.m`
+- Batch timeline generation result:
+  - subjects processed: `28`
+  - subjects with errors: `0`
+  - summary CSV:  
+    `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/session_timeline/session_timeline_summary.csv`
+  - per-subject outputs:
+    - `*_session_timeline.png`
+    - `*_session_timeline.csv`
 
 ### Known Caveats (still open)
 - `parseViconCSV.m` currently assumes an `Unlabeled` column exists in Vicon headers.

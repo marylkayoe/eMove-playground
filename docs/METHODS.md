@@ -1,7 +1,7 @@
 # Methods (Draft)
 
-Version: 0.1 (working draft)  
-Date: 2026-03-08
+Version: 0.2 (working draft)  
+Date: 2026-03-11
 
 ## 1) Study Aim
 
@@ -35,7 +35,15 @@ As of 2026-03-08 (current prescreen snapshot):
   - `hr`: `30`
   - `eda`: `38`
 - unique mocap-assigned subjects: `28`
-- hardwired excluded IDs for this dataset: `JANNE`, `AS2302`, `XC1301`
+- subject exclusions are now loaded from:
+  `resources/project/subject_exclusions.csv`
+- current default exclusions in that file: `AB1502`, `JANNE`, `AS2302`, `XC1301`
+- `runMotionMetricsBatch(...)` and `runMotionMetricsBatchFromManifest(...)`
+  apply this exclusion list by default (can be overridden by parameters).
+- default marker grouping is now legacy-style 9 groups:
+  `UTORSO`, `HEAD`, `UPPER_LIMB_L`, `UPPER_LIMB_R`,
+  `LOWER_LIMB_L`, `LOWER_LIMB_R`, `WRIST_L`, `WRIST_R`, `LTORSO`
+  (with `OTHER`, `HAND_L`, `HAND_R` excluded in default grouping CSV).
 
 Built MAT outputs:
 - subject folders under `matlab_from_manifest`: `28`
@@ -162,6 +170,36 @@ CDF reporting convention (current plotting scripts):
   each in both:
   - absolute units (no baseline normalization),
   - fold-baseline units (per-subject baseline normalization).
+
+KS immobility reporting convention:
+- KS values are computed from raw per-sample arrays (`speedArrayImmobile`), not from medians.
+- Displayed heatmap values are aggregated across subjects (default aggregation in `plotKsHeatmap`: median).
+- `minSamplesPerCond` in `computeKsDistancesFromResultsCell` is a per-subject gate:
+  - for each subject + markerGroup + emotion pair, both conditions must meet the sample minimum.
+  - default in code is `200`.
+- Project operational decision (2026-03-11):
+  - use `minSamplesPerCond=200` consistently for KS reporting unless explicitly noted otherwise.
+- Increasing `minSamplesPerCond` (for example to `5000`) can remove markerGroups/pairs that were present at `200` (notably wrist groups in this dataset).
+
+Cross-code reproducibility note (legacy folder vs playground):
+- Controlled A/B comparison showed metric parity when:
+  - identical subject set is enforced, and
+  - exclusion policy is matched (`applySubjectExclusions` setting aligned).
+- Observed KS discrepancies during debugging were attributable to subject inclusion mismatch, not a mathematical drift in KS computation.
+
+Stick-figure plotting notes (2026-03-11):
+- Poster KS stick-figure code now normalizes marker-group names so current schema
+  (`UTORSO`, `UPPER_LIMB_L`, `WRIST_L`, etc.) maps correctly to the body diagram.
+- `maxPairs` is now honored in all-pairs wrapper flow.
+- Current KS immobility script defaults:
+  - threshold: `<=35 mm/s`,
+  - `minSamplesPerCond=200`,
+  - optional exclusion of `FEAR` from pair display for contrast-focused visualization.
+
+SAL/MAD immobility availability (current gap):
+- Speed has explicit immobility-window arrays (`speedArrayImmobile`), and KS/CDF pathways can target that field.
+- SAL and MAD are currently exposed as full-window summary metrics in the main results tables; there is no equivalent immobility-window SAL/MAD field path in current reporting scripts.
+- Planned extension should add read-paths/fields for SAL/MAD restricted to immobility windows before new inferential use.
 
 ---
 

@@ -15,8 +15,9 @@ repoRoot = '/Users/yoe/Documents/REPOS/eMove-playground';
 dataRoot = '/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject';
 stimCsv = fullfile(repoRoot, 'resources/stim_video_encoding_SINGLES.csv');
 
-% Fast path: reuse existing resultsCell from a completed run.
-latestRunDir = fullfile(dataRoot, 'derived', 'analysis_runs', '20260311_110642');
+% Fast path: reuse latest resultsCell from a completed manifest run.
+analysisRunsRoot = fullfile(dataRoot, 'derived', 'analysis_runs');
+latestRunDir = localFindLatestAnalysisRun(analysisRunsRoot);
 resultsCellPath = fullfile(latestRunDir, 'resultsCell.mat');
 
 runStamp = string(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
@@ -180,6 +181,24 @@ end
 fprintf('Done. CDF figures saved under:\n%s\n', outDir);
 
 %% Local helpers
+function latestRunDir = localFindLatestAnalysisRun(analysisRunsRoot)
+    if ~isfolder(analysisRunsRoot)
+        error('Analysis runs folder not found: %s', analysisRunsRoot);
+    end
+    d = dir(analysisRunsRoot);
+    d = d([d.isdir]);
+    names = string({d.name});
+    names = names(names ~= "." & names ~= "..");
+    % Expected run folder names: yyyyMMdd_HHmmss
+    isRun = ~cellfun('isempty', regexp(cellstr(names), '^\d{8}_\d{6}$', 'once'));
+    names = names(isRun);
+    if isempty(names)
+        error('No timestamped analysis run folders found under %s', analysisRunsRoot);
+    end
+    names = sort(names);
+    latestRunDir = fullfile(analysisRunsRoot, char(names(end)));
+end
+
 function codingTable = localLoadStimCodingTable(stimCsv)
     opts = detectImportOptions(stimCsv, 'VariableNamingRule', 'preserve');
     strCols = {'videoID','emotionTag','groupCode'};

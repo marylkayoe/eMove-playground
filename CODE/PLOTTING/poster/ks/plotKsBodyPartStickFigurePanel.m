@@ -17,6 +17,7 @@ function R = plotKsBodyPartStickFigurePanel(ksTbl, varargin)
 %   'annotateDelta'    - annotate deltaMedian_sorted (default false)
 %   'annotateField'    - annotation field (default 'deltaMedian_sorted')
 %   'showValues'       - show D values on body-part labels (default true)
+%   'showGroupLabels'  - show body-part name labels (default true)
 %   'titleText'        - panel title
 %   'colormapName'     - colormap for all panels (default 'turbo')
 %
@@ -36,6 +37,7 @@ function R = plotKsBodyPartStickFigurePanel(ksTbl, varargin)
     addParameter(p, 'annotateDelta', false, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'annotateField', 'deltaMedian_sorted', @(x) ischar(x) || isstring(x));
     addParameter(p, 'showValues', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'showGroupLabels', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'titleText', 'Body-part discriminability across emotion pairs', @(x) ischar(x) || isstring(x));
     addParameter(p, 'colormapName', 'turbo');
     parse(p, ksTbl, varargin{:});
@@ -79,6 +81,7 @@ function R = plotKsBodyPartStickFigurePanel(ksTbl, varargin)
             'annotateDelta', p.Results.annotateDelta, ...
             'annotateField', p.Results.annotateField, ...
             'showValues', p.Results.showValues, ...
+            'showGroupLabels', p.Results.showGroupLabels, ...
             'showColorbar', false, ...
             'cLim', thisCLim, ...
             'colormapName', p.Results.colormapName, ...

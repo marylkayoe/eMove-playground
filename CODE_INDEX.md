@@ -51,6 +51,10 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `plotSelfReportBodyMapsByVideo.m`
   - Includes subject session-structure visualization:
     - `plotSubjectSessionTimeline.m`
+  - Includes poster KS body-part stick figure tools:
+    - `poster/ks/plotKsBodyPartStickFigure.m`
+    - `poster/ks/plotKsBodyPartStickFigurePanel.m`
+    - `poster/ks/plotKsBodyPartStickFigureAllPairs.m`
 
 - `CODE/PLOTTING/poster/gui/`
   - Interactive exploration tools.
@@ -93,6 +97,10 @@ Current expected fields:
   - `scripts/run_testing_smoke.m`
   - `scripts/plot_session_timeline_batch.m`
   - `scripts/run_full_analysis_manifest_once.m`
+  - `scripts/run_cdf_only_manifest.m`
+  - `scripts/run_ks_immobility_only.m`
+  - `scripts/run_external_vs_playground_ab_qc.m`
+  - `scripts/compare_external_playground_same_subjects.m`
 - Self-report compact conversion:
   - `CODE/HELPERS/parseSelfReportBodyCSV.m`
 - Self-report to Unity order mapping:
@@ -143,3 +151,6 @@ These files contain computation logic and should be treated as approval-required
 
 - `CODE/HELPERS/buildDatasetAssignments.m`
   - Adds optional cleanup to reassign short same-day `UNKNOWN` pre-session rows to the next known mocap subject.
+
+- `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigureAllPairs.m`
+  - Pair filtering and `maxPairs` selection are now passed through panel auto-resolution (wrapper no longer forces all pairs).

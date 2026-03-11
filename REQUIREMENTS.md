@@ -1,8 +1,8 @@
 # eMove Requirements
 
-Version: 1.1  
+Version: 1.2  
 Created: 2026-03-05  
-Updated: 2026-03-07
+Updated: 2026-03-11
 
 ## 1) Project Aim
 
@@ -96,6 +96,7 @@ flag-only by default (no hard auto-exclusion).
 6. Sync mismatch warning tolerance is currently TBD and must remain configurable.
 7. HR/EDA/Eye missingness thresholds are currently TBD and must remain configurable.
 8. QC should explicitly report split modality file counts and ordering assumptions (for example HR/EDA in multiple pieces).
+9. Cross-code reproducibility checks must compare matched subject sets and matched exclusion modes before interpreting algorithm drift.
 
 ## 9) Coding Tables And Labels
 
@@ -136,6 +137,19 @@ parameters used, subject counts per condition, modality availability summary.
 3. Non-obvious logic must be commented.
 4. Core computed-algorithm changes require explicit owner approval before implementation.
 5. This approval rule applies to metrics such as speed, spectral, immobility, and statistical distance logic.
+
+## 17) Current Analysis Conventions (2026-03-11)
+
+1. KS immobility reporting convention uses `minSamplesPerCond=200` as the operational default.
+2. KS visualizations may exclude `FEAR` for contrast-focused exploratory displays; exclusions must be stated in figure metadata.
+3. Subject exclusion behavior must be explicitly documented in each run report (`applySubjectExclusions=true/false`).
+4. Reproduction across legacy/current code must use identical subject sets before comparing effect sizes.
+
+## 18) SAL/MAD Accessibility Requirement (New)
+
+1. SAL and MAD must be made explicitly queryable for immobility-window-restricted data, analogous to current `speedArrayImmobile` pathways.
+2. This enhancement should first be implemented as data-access/reporting plumbing (field availability, plotting hooks), without changing approved core metric math.
+3. Any new inferential/statistical use of immobility-window SAL/MAD remains approval-gated under algorithm-governance rules.
 
 ## 13) Configuration Requirements
 

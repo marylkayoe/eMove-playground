@@ -3,8 +3,9 @@
 Run script:
 - `scripts/run_full_analysis_manifest_once.m`
 
-Canonical completed run:
-- output folder: `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_110642`
+Canonical completed runs:
+- initial full run: `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_110642`
+- latest full run (current reference): `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_200947`
 
 ## 1) Scope Executed
 
@@ -33,6 +34,11 @@ The following stages were executed end-to-end:
   - KS heatmap,
   - KS stick-figure panel.
 
+Latest reference run notes (`20260311_200947`):
+- Subject processing: `27/27` succeeded (default exclusion policy active).
+- KS + stick-figure outputs were generated and mirrored into repo figure folders.
+- CDF-only post-run export was generated from this exact `resultsCell`.
+
 ## 3) Warnings / Quirks Observed
 
 1. `plotSpeedCDFByStimGroupFromResultsCell` warning:
@@ -52,4 +58,7 @@ The following stages were executed end-to-end:
 - Keep `maxSamplesPerDist` exposed as a documented analysis parameter and log it on every run.
 - Consider adding a wrapper option preset (for example `runtimeProfile='full'|'fast'`) to avoid manual edits.
 - Consider fixing legend handle creation in `plotSpeedCDFByStimGroupFromResultsCell` to remove noisy warnings.
-
+- Keep explicit reporting of:
+  - `minSamplesPerCond` for KS runs,
+  - subject exclusion mode (`applySubjectExclusions` true/false),
+  because both materially change displayed KS outputs.

@@ -19,6 +19,14 @@ This repository is dedicated to analyzing movement signatures in motion capture 
 3. Run batch motion metrics.
 4. Produce aggregate summaries and plots.
 
+Current analysis run scripts:
+- Full manifest run (metrics + CDF + distance + KS + stick figures):  
+  `scripts/run_full_analysis_manifest_once.m`
+- CDF-only export from latest manifest run:  
+  `scripts/run_cdf_only_manifest.m`
+- KS immobility-only export (heatmaps + stick figures):  
+  `scripts/run_ks_immobility_only.m`
+
 ## Session Structure (Canonical)
 - One continuous mocap recording per subject session.
 - `16` total segments per session:
@@ -38,7 +46,11 @@ Detailed conventions are in [CONTRIBUTING_READABILITY.md](CONTRIBUTING_READABILI
 - `RAWDATA/` is excluded from version control to avoid issues with large files.
 - Keep raw self-report CSV immutable (example: `.../HUMANMOCAP/Self-report-body.csv`).
 - Save parsed self-report outputs (for example `selfReportCompact.mat`) in a derived data location outside this repo (example: `.../HUMANMOCAP_by_subject/derived/selfreport/`).
+- Subject exclusion policy is CSV-driven via `resources/project/subject_exclusions.csv`.
+- Important reproducibility note:
+  - `runMotionMetricsBatch*` currently applies subject exclusions by default.
+  - For legacy parity checks, explicitly pass `'applySubjectExclusions', false`.
 
 ---
 
-*Last updated: March 5, 2026*
+*Last updated: March 11, 2026*

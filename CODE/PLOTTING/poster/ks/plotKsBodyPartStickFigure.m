@@ -35,6 +35,7 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
     addParameter(p, 'annotateField', 'deltaMedian_sorted', @(x) ischar(x) || isstring(x));
     addParameter(p, 'showColorbar', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'showValues', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'showGroupLabels', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'titleText', '', @(x) ischar(x) || isstring(x));
     addParameter(p, 'plotWhere', [], @(x) isempty(x) || isgraphics(x, 'axes'));
     addParameter(p, 'cLim', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2));
@@ -133,25 +134,26 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
 
         % labels / value annotations near body part
         pTxt = [def.labelX(i), def.labelY(i)];
-        labelLines = {grp};
-        if p.Results.showValues
-            valStr = 'n/a';
-            if ~isempty(idx) && isfinite(S.value(idx))
-                valStr = sprintf('D=%.2f', S.value(idx));
-            end
-            txt = valStr;
+        labelLines = {};
+        if p.Results.showGroupLabels
+            labelLines{end+1} = def.displayLabel{i}; %#ok<AGROW>
+        end
+        if p.Results.showValues && ~isempty(idx) && isfinite(S.value(idx))
+            valStr = sprintf('D=%.2f', S.value(idx));
             if p.Results.annotateDelta
-                if ~isempty(idx) && isfinite(S.annotation(idx))
-                    txt = sprintf('%s\n%+.2f', valStr, S.annotation(idx));
+                if isfinite(S.annotation(idx))
+                    valStr = sprintf('%s\n%+.2f', valStr, S.annotation(idx));
                 else
-                    txt = sprintf('%s\n--', valStr);
+                    valStr = sprintf('%s\n--', valStr);
                 end
             end
-            labelLines{end+1} = txt; %#ok<AGROW>
+            labelLines{end+1} = valStr; %#ok<AGROW>
         end
-        hText(end+1,1) = text(ax, pTxt(1), pTxt(2), strjoin(labelLines, newline), ... %#ok<AGROW>
-            'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
-            'FontSize', 9, 'Color', [0.1 0.1 0.1], 'Interpreter', 'none');
+        if ~isempty(labelLines)
+            hText(end+1,1) = text(ax, pTxt(1), pTxt(2), strjoin(labelLines, newline), ... %#ok<AGROW>
+                'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
+                'FontSize', 9, 'Color', [0.1 0.1 0.1], 'Interpreter', 'none');
+        end
     end
 
     % Body joints for readability.
@@ -222,6 +224,8 @@ function S = localAggregatePair(ksTbl, pairLabel, valueField, aggFcnName, minSub
     nSubjects = zeros(n,1);
     annotation = nan(n,1);
 
+    T.markerGroup = cellstr(localNormalizeMarkerGroupNames(T.markerGroup));
+
     hasAnnot = doAnnotate && ismember(annotateField, T.Properties.VariableNames);
     for i = 1:n
         g = allGroups{i};
@@ -251,7 +255,8 @@ function S = localAggregatePair(ksTbl, pairLabel, valueField, aggFcnName, minSub
 end
 
 function groups = localCanonicalBodyPartGroups()
-    groups = {'head','uppertorso','Waist','L-arm','R-arm','L-Wrist','R-Wrist','L-leg','R-leg'};
+    groups = {'HEAD','UTORSO','LTORSO','UPPER_LIMB_L','UPPER_LIMB_R', ...
+        'WRIST_L','WRIST_R','LOWER_LIMB_L','LOWER_LIMB_R'};
 end
 
 function [segments, nodes] = localStickLayout()
@@ -295,7 +300,11 @@ end
 function def = localBodyPartGlyphs()
     def = table();
     def.markerGroup = { ...
-        'head'; 'uppertorso'; 'Waist'; 'L-arm'; 'R-arm'; 'L-Wrist'; 'R-Wrist'; 'L-leg'; 'R-leg'};
+        'HEAD'; 'UTORSO'; 'LTORSO'; 'UPPER_LIMB_L'; 'UPPER_LIMB_R'; ...
+        'WRIST_L'; 'WRIST_R'; 'LOWER_LIMB_L'; 'LOWER_LIMB_R'};
+    def.displayLabel = { ...
+        'head'; 'upper torso'; 'waist'; 'L-arm'; 'R-arm'; ...
+        'L-wrist'; 'R-wrist'; 'L-leg'; 'R-leg'};
     def.glyphType = { ...
         'circle'; 'polyline'; 'segment'; 'polyline'; 'polyline'; 'circle'; 'circle'; 'polyline'; 'polyline'};
     def.nodeA = { ...
@@ -311,6 +320,26 @@ function def = localBodyPartGlyphs()
     def.radius = [0.28; 0; 0; 0; 0; 0.12; 0.12; 0; 0];
     def.labelX = [0; 0; 0; -1.18; 1.18; -1.15; 1.15; -0.85; 0.85];
     def.labelY = [1.05; 0.10; -0.62; 0.05; 0.05; -0.52; -0.52; -1.45; -1.45];
+end
+
+function out = localNormalizeMarkerGroupNames(in)
+    s = upper(strtrim(string(in)));
+    s = replace(s, "-", "_");
+    s = replace(s, " ", "_");
+
+    out = s;
+    out(startsWith(s, "HEAD")) = "HEAD";
+    out(ismember(s, ["UPPERTORSO","UPPER_TORSO","UTORSO","TORSO_U","UPPER_TORSO_CENTER"])) = "UTORSO";
+    out(ismember(s, ["WAIST","LTORSO","LOWERTORSO","LOWER_TORSO","TORSO_L"])) = "LTORSO";
+
+    out(ismember(s, ["L_ARM","LEFT_ARM","UPPER_LIMB_L","UPPERLIMB_L"])) = "UPPER_LIMB_L";
+    out(ismember(s, ["R_ARM","RIGHT_ARM","UPPER_LIMB_R","UPPERLIMB_R"])) = "UPPER_LIMB_R";
+
+    out(ismember(s, ["L_WRIST","WRIST_L","LEFT_WRIST"])) = "WRIST_L";
+    out(ismember(s, ["R_WRIST","WRIST_R","RIGHT_WRIST"])) = "WRIST_R";
+
+    out(ismember(s, ["L_LEG","LEFT_LEG","LOWER_LIMB_L","LOWERLIMB_L"])) = "LOWER_LIMB_L";
+    out(ismember(s, ["R_LEG","RIGHT_LEG","LOWER_LIMB_R","LOWERLIMB_R"])) = "LOWER_LIMB_R";
 end
 
 function pts = localPolylinePoints(nodes, nodeList)

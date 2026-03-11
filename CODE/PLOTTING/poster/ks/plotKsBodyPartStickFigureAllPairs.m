@@ -49,23 +49,11 @@ function R = plotKsBodyPartStickFigureAllPairs(ksTbl, varargin)
     if ~isempty(excludeEmotions)
         keep = keep & ~ismember(emoA, excludeEmotions) & ~ismember(emoB, excludeEmotions);
     end
-    emoA = emoA(keep);
-    emoB = emoB(keep);
-
-    pr = sort([emoA emoB], 2);
-    pairLabels = unique(pr(:,1) + "-" + pr(:,2), 'stable');
-
-    emotionPairs = cell(numel(pairLabels), 2);
-    for i = 1:numel(pairLabels)
-        sp = split(pairLabels(i), "-");
-        emotionPairs{i,1} = char(sp(1));
-        emotionPairs{i,2} = char(sp(2));
-    end
+    ksTblFiltered = ksTbl(keep, :);
 
     panelArgs = localForwardArgs(varargin, {'excludeEmotions','includeEmotions'});
 
-    R = plotKsBodyPartStickFigurePanel(ksTbl, ...
-        'emotionPairs', emotionPairs, ...
+    R = plotKsBodyPartStickFigurePanel(ksTblFiltered, ...
         panelArgs{:});
 end
 

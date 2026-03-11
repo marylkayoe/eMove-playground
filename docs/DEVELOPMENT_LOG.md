@@ -4,6 +4,47 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-03-11
 
+### Cross-Repository Reproducibility QC (external CODE vs playground CODE)
+- Added controlled A/B scripts:
+  - `scripts/run_external_vs_playground_ab_qc.m`
+  - `scripts/compare_external_playground_same_subjects.m`
+- Key outcome:
+  - with identical subject sets and matched exclusion policy, KS results are identical across code trees (`maxAbsDeltaD=0`).
+  - prior observed differences were explained by subject inclusion mismatch (playground default exclusions enabled vs legacy flow).
+
+### Subject Inclusion Governance
+- Confirmed active exclusion source:
+  - `resources/project/subject_exclusions.csv`
+- Current default analysis runs therefore use 27 subjects (28 mocap-assigned minus excluded IDs) unless explicitly overridden.
+- Added explicit parity guidance in docs/scripts:
+  - use `'applySubjectExclusions', false` for strict legacy reproduction checks.
+
+### KS And Stick-Figure Usability Fixes
+- Fixed marker-group name compatibility in:
+  - `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigure.m`
+  - added normalization from legacy/current label variants to canonical groups.
+- Fixed wrapper behavior in:
+  - `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigureAllPairs.m`
+  - `maxPairs` now works as intended.
+- Extended panel forwarding in:
+  - `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigurePanel.m`
+  - now supports `showGroupLabels` pass-through.
+- Current visualization defaults in `scripts/run_ks_immobility_only.m`:
+  - `minSamplesPerCond=200`,
+  - immobility threshold `<=35 mm/s`,
+  - optional `FEAR` exclusion from displayed pairs,
+  - style tuned for cleaner body-part-only labels.
+
+### Manifest Run Outputs (today)
+- Full manifest pipeline run:
+  - `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_200947`
+  - mirrored figures:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/20260311_200947`
+- CDF-only export from latest manifest run:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/cdf_only_20260311_201604`
+- KS immobility (minSamples=200, FEAR-excluded display) latest:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/ks_immobile_20260311_203819`
+
 ### Analysis Pipeline Run (Manifest-Ordered)
 - Added `CODE/ANALYSIS/runMotionMetricsBatchFromManifest.m`:
   - same computation path as `runMotionMetricsBatch`,
@@ -141,6 +182,16 @@ This document tracks project state, implementation decisions, and validation run
   - defaults to clipping first 5 seconds (`CLIPSEC=5`)
   - overwrites passed `mocapMetaData` with `trialData.metaData`
 - These are known behavior risks and should be addressed deliberately before broad automation.
+
+### Subject Exclusion Registry (2026-03-11)
+- Added CSV-backed exclusion source:
+  - `resources/project/subject_exclusions.csv`
+- Added helper functions:
+  - `CODE/HELPERS/loadSubjectExclusionList.m`
+  - `CODE/HELPERS/filterResultsCellBySubjectExclusion.m`
+- Compatibility update:
+  - `CODE/HELPERS/isHardwiredExcludedSubjectID.m` now reads the CSV list while
+    preserving the legacy function name used by existing pipeline code.
 
 ### Update Procedure (after each build/test cycle)
 1. Add a new dated section at top (`## YYYY-MM-DD`).

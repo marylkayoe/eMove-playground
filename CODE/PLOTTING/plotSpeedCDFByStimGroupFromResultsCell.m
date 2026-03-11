@@ -20,6 +20,9 @@ addParameter(p, 'summaryField', '', @(x) ischar(x) || isstring(x));
 addParameter(p, 'outlierQuantile', 0.99, @(x) isempty(x) || (isscalar(x) && x>0 && x<1));
 addParameter(p, 'minSamplesPerSubj', 200, @(x) isscalar(x) && x>=0);
 addParameter(p, 'tileCols', 3, @(x) isscalar(x) && x>=1);
+addParameter(p, 'figureTitle', '', @(x) ischar(x) || isstring(x));
+addParameter(p, 'showStats', true, @(x) islogical(x) && isscalar(x));
+addParameter(p, 'statsPair', {'NEUTRAL','FEAR'}, @(x) iscell(x) || isstring(x));
 
 addParameter(p, 'doBaselineNormalize', true, @(x) islogical(x) && isscalar(x));
 addParameter(p, 'baselineEmotion', '0', @(x) ischar(x) || isstring(x));
@@ -38,6 +41,9 @@ summaryField = char(string(p.Results.summaryField));
 outlierQuantile = p.Results.outlierQuantile;
 minSamplesPerSubj = p.Results.minSamplesPerSubj;
 tileCols = p.Results.tileCols;
+figureTitle = char(string(p.Results.figureTitle));
+showStats = p.Results.showStats;
+statsPair = cellstr(string(p.Results.statsPair));
 
 doBaselineNormalize = p.Results.doBaselineNormalize;
 baselineEmotion = char(string(p.Results.baselineEmotion));
@@ -90,12 +96,22 @@ nCols = min(tileCols, nGroups);
 nRows = ceil(nGroups / nCols);
 figure;
 tl = tiledlayout(nRows, nCols, 'Padding', 'compact', 'TileSpacing', 'compact');
+if isempty(figureTitle)
+    figureTitle = sprintf('CDF by marker group | %s', plotMode);
+end
+title(tl, figureTitle, 'Interpreter', 'none');
 
 emotionList = allEmotions(:);
+emotionColorMap = localBuildEmotionColorMap(codingTable, emotionList);
+axHandles = gobjects(nGroups, 1);
+legendHandlesMaster = gobjects(0);
+legendLabelsMaster = {};
 
-for g = 1:nGroups
-    mg = markerGroups{g};
-    nexttile; hold on;
+    for g = 1:nGroups
+        mg = markerGroups{g};
+        mgLabel = localPrettyMarkerGroupLabel(mg);
+        nexttile; hold on;
+        axHandles(g) = gca;
 
     switch plotMode
         case 'perVideoMedian'
@@ -108,7 +124,12 @@ for g = 1:nGroups
 
                 pooled{e} = localApplyOutlierCut(pooled{e}, outlierQuantile);
             end
-            localPlotPooledEcdfs(pooled);
+            [hLegend, labelsLegend] = localPlotPooledEcdfs(pooled, emotionList, emotionColorMap);
+            if isempty(legendHandlesMaster) && ~isempty(hLegend)
+                legendHandlesMaster = hLegend;
+                legendLabelsMaster = labelsLegend;
+            end
+            localAnnotateStats(gca, pooled, emotionList, showStats, statsPair);
 
             if doBaselineNormalize
                 xlabel("Median speed (fold baseline)");
@@ -116,7 +137,7 @@ for g = 1:nGroups
                 xlabel(localXLabelFromField(summaryField));
             end
             ylabel('CDF');
-            title(sprintf('%s | perVideoMedian', mg));
+            title(mgLabel, 'Interpreter', 'none');
             grid on;
 
         case 'pooledRaw'
@@ -138,7 +159,12 @@ for g = 1:nGroups
                 pooled{e} = valsAll;
             end
 
-            localPlotPooledEcdfs(pooled);
+            [hLegend, labelsLegend] = localPlotPooledEcdfs(pooled, emotionList, emotionColorMap);
+            if isempty(legendHandlesMaster) && ~isempty(hLegend)
+                legendHandlesMaster = hLegend;
+                legendLabelsMaster = labelsLegend;
+            end
+            localAnnotateStats(gca, pooled, emotionList, showStats, statsPair);
 
             if doBaselineNormalize
                 xlabel("Speed samples (fold baseline)");
@@ -146,7 +172,7 @@ for g = 1:nGroups
                 xlabel(localXLabelFromField(immobilityField));
             end
             ylabel('CDF');
-            title(sprintf('%s | pooledRaw', mg));
+            title(mgLabel, 'Interpreter', 'none');
             grid on;
 
         case 'perSubjectRaw'
@@ -190,7 +216,7 @@ for g = 1:nGroups
                 xlabel(localXLabelFromField(immobilityField));
             end
             ylabel('CDF');
-            title(sprintf('%s | perSubjectRaw (thin=subj, thick=median)', mg));
+            title(mgLabel, 'Interpreter', 'none');
             grid on;
 
         otherwise
@@ -199,10 +225,17 @@ for g = 1:nGroups
 end
 
 % Legend: in perSubjectRaw it's meaningless (many repeated lines)
-if ~strcmp(plotMode, 'perSubjectRaw')
-    legend(emotionList, 'Location', 'southeast');
+if ~strcmp(plotMode, 'perSubjectRaw') && ~isempty(legendHandlesMaster)
+    legend(axHandles(end), legendHandlesMaster, legendLabelsMaster, ...
+        'Location', 'eastoutside', 'Interpreter', 'none');
 end
 
+end
+
+function s = localPrettyMarkerGroupLabel(raw)
+% Render marker-group labels for plots without underscores.
+    s = char(string(raw));
+    s = strrep(s, '_', '-');
 end
 
 %% ---------- helpers ----------
@@ -248,13 +281,118 @@ for r = 1:height(st)
 end
 end
 
-function localPlotPooledEcdfs(pooledVals)
+function [hOut, labelsOut] = localPlotPooledEcdfs(pooledVals, emotionList, emotionColorMap)
+hOut = gobjects(0);
+labelsOut = {};
 for i = 1:numel(pooledVals)
     v = pooledVals{i};
     if isempty(v), continue; end
     [f, x] = ecdf(v);
-    stairs(x, f, 'LineWidth', 1.4);
+    emo = char(string(emotionList{i}));
+    if isKey(emotionColorMap, emo)
+        c = emotionColorMap(emo);
+        h = stairs(x, f, 'LineWidth', 1.4, 'Color', c);
+    else
+        h = stairs(x, f, 'LineWidth', 1.4);
+    end
+    hOut(end+1,1) = h; %#ok<AGROW>
+    labelsOut{end+1,1} = emo; %#ok<AGROW>
 end
+end
+
+function emotionColorMap = localBuildEmotionColorMap(codingTable, emotionList)
+    emotionColorMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    if isempty(codingTable)
+        return;
+    end
+
+    if istable(codingTable)
+        if width(codingTable) < 2
+            return;
+        end
+        vids = cellstr(string(codingTable{:,1}));
+        grps = cellstr(string(codingTable{:,2}));
+        codingCell = [vids, grps];
+    elseif iscell(codingTable) && size(codingTable,2) >= 2
+        codingCell = codingTable(:,1:2);
+        vids = cellstr(string(codingCell(:,1)));
+    else
+        return;
+    end
+
+    [~, ~, uniqueGroups, groupColorMap] = resolveStimVideoColors(vids, codingCell);
+    for i = 1:numel(uniqueGroups)
+        g = char(string(uniqueGroups{i}));
+        if isKey(groupColorMap, g)
+            emotionColorMap(g) = groupColorMap(g);
+        end
+    end
+
+    % Ensure requested emotions have deterministic fallback colors.
+    missing = {};
+    for i = 1:numel(emotionList)
+        e = char(string(emotionList{i}));
+        if ~isKey(emotionColorMap, e)
+            missing{end+1,1} = e; %#ok<AGROW>
+        end
+    end
+    if ~isempty(missing)
+        cmap = lines(numel(missing));
+        for i = 1:numel(missing)
+            emotionColorMap(missing{i}) = cmap(i,:);
+        end
+    end
+end
+
+function localAnnotateStats(ax, pooledVals, emotionList, showStats, statsPair)
+    if ~showStats
+        return;
+    end
+
+    dataAll = [];
+    groupAll = {};
+    for i = 1:numel(pooledVals)
+        v = pooledVals{i};
+        if isempty(v), continue; end
+        dataAll = [dataAll; v(:)]; %#ok<AGROW>
+        groupAll = [groupAll; repmat(emotionList(i), numel(v), 1)]; %#ok<AGROW>
+    end
+    if isempty(dataAll) || numel(unique(groupAll)) < 2
+        return;
+    end
+
+    pKW = kruskalwallis(dataAll, groupAll, 'off');
+    if pKW < 0.001
+        starStr = '***';
+    elseif pKW < 0.01
+        starStr = '**';
+    elseif pKW < 0.05
+        starStr = '*';
+    else
+        starStr = 'n.s.';
+    end
+
+    text(ax, 0.02, 0.96, sprintf('%s  KW p=%.2g', starStr, pKW), ...
+        'Units', 'normalized', 'FontSize', 9, 'FontWeight', 'bold');
+
+    if numel(statsPair) ~= 2
+        return;
+    end
+    a = upper(strtrim(string(statsPair{1})));
+    b = upper(strtrim(string(statsPair{2})));
+    ia = find(upper(string(emotionList)) == a, 1);
+    ib = find(upper(string(emotionList)) == b, 1);
+    if isempty(ia) || isempty(ib)
+        return;
+    end
+    va = pooledVals{ia};
+    vb = pooledVals{ib};
+    if isempty(va) || isempty(vb)
+        return;
+    end
+    [~, pPair] = kstest2(va, vb);
+    text(ax, 0.02, 0.89, sprintf('%s vs %s p=%.2g', a, b, pPair), ...
+        'Units', 'normalized', 'FontSize', 9, 'Color', [0.25 0.25 0.25]);
 end
 
 function v = localApplyOutlierCut(v, outlierQuantile)

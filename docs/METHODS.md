@@ -83,7 +83,7 @@ Current working file:
 
 Snapshot:
 - canonical rows: `16` (1 baseline + 15 post-baseline stimulus IDs)
-- currently included rows in checked-in table: `17` (requires reconciliation to canonical 16)
+- currently included rows in checked-in table: `16`
 - unresolved tags (`X` or empty): `11` (to be finalized)
 
 Minimum columns used in current workflows:
@@ -147,6 +147,21 @@ Recommended provenance with each analysis run:
 - run timestamp,
 - data snapshot path(s),
 - config table versions (`stim_video_encoding_*.csv`, `bodypart_marker_grouping.csv`).
+
+Runtime note for distance analyses:
+- `computeStimDistanceWasserstein` can become impractically slow on full pooled sample arrays.
+- For reproducible full-batch runs, apply a fixed cap with
+  `maxSamplesPerDist` (current operational setting: `5000` in `scripts/run_full_analysis_manifest_once.m`).
+- Record the cap value in run metadata/report, because it changes runtime and can slightly affect distance estimates.
+
+CDF reporting convention (current plotting scripts):
+- Export both absolute-value and baseline-normalized variants for the same metric.
+- Current CDF script (`scripts/run_cdf_only_manifest.m`) exports:
+  - `perVideoMedian` (row-level medians),
+  - `pooledRaw` (all pooled speed samples),
+  each in both:
+  - absolute units (no baseline normalization),
+  - fold-baseline units (per-subject baseline normalization).
 
 ---
 

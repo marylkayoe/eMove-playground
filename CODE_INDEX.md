@@ -40,6 +40,7 @@ This document maps the current MATLAB codebase so new contributors can quickly f
   - Metric computation, aggregation, and statistical summaries.
   - Main files:
     - `runMotionMetricsBatch.m`
+    - `runMotionMetricsBatchFromManifest.m`
     - `getMotionMetricsAcrossStims.m`
     - `getMotionMetricsForMarkers.m`
     - `getMotionMetricsFromTrajectory.m`
@@ -91,6 +92,7 @@ Current expected fields:
   - `scripts/launch_bodypart_grouping_helper.m`
   - `scripts/run_testing_smoke.m`
   - `scripts/plot_session_timeline_batch.m`
+  - `scripts/run_full_analysis_manifest_once.m`
 - Self-report compact conversion:
   - `CODE/HELPERS/parseSelfReportBodyCSV.m`
 - Self-report to Unity order mapping:

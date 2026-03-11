@@ -2,6 +2,67 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-03-11
+
+### Analysis Pipeline Run (Manifest-Ordered)
+- Added `CODE/ANALYSIS/runMotionMetricsBatchFromManifest.m`:
+  - same computation path as `runMotionMetricsBatch`,
+  - subject traversal follows manifest order,
+  - selects latest MAT per subject when duplicates exist.
+- Added orchestration script `scripts/run_full_analysis_manifest_once.m` to run:
+  - motion metrics batch,
+  - normalized-bucket/group plots,
+  - stimulus-distance matrices + clustering,
+  - KS tables + heatmap + body-part stick figures,
+  - and save all outputs to a timestamped run folder.
+
+### Run Results
+- Successful run output folder:
+  - `/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_110642`
+- Subject batch stage:
+  - `28/28` subjects OK
+  - runtime: `133.8 s`
+- Distance + clustering stage:
+  - runtime: `155.8 s`
+  - selected `k=2` in current silhouette sweep
+- KS + stick-figure stage:
+  - runtime: `7.6 s`
+
+### Runtime Observation And Mitigation
+- A prior attempt without sample capping in `computeStimDistanceWasserstein` became impractically slow.
+- Mitigation applied:
+  - `maxSamplesPerDist=5000` in the run script for reproducible full-batch completion.
+- This setting is now documented in `docs/METHODS.md` as an explicit runtime/reproducibility parameter.
+
+### CDF Plotting Adjustments
+- Added `scripts/run_cdf_only_manifest.m` for CDF-only exports (no KS/distance stages).
+- CDF export now includes both absolute and baseline-normalized variants for:
+  - `perVideoMedian` (median speed per row),
+  - `pooledRaw` (all speed samples).
+- Plot title labels now render marker-group names without underscores in
+  `CODE/PLOTTING/plotSpeedCDFByStimGroupFromResultsCell.m`.
+- Figure layout updates:
+  - figure-level title (suptitle) carries mode/context metadata,
+  - panel titles show marker-group labels only,
+  - legend is placed outside the last panel (`eastoutside`).
+- CDF exporter now saves MATLAB figure files (`.fig`) in addition to `.png` and `.pdf`.
+
+### CDF Stats/Color Consistency And Immobility-35 Run
+- `plotSpeedCDFByStimGroupFromResultsCell` now supports:
+  - figure-level titles with run context,
+  - compact panel titles (marker label only),
+  - external legend placement (`eastoutside`) on last panel,
+  - consistent emotion colors via `resolveStimVideoColors`,
+  - per-panel nonparametric stats text:
+    - Kruskal-Wallis p-value,
+    - configurable pairwise KS p-value (default `NEUTRAL` vs `FEAR`).
+- `run_cdf_only_manifest.m` now supports mode flags and current default run mode:
+  - immobility-only export (`doImmobile=true`, `doFullSpeed=false`),
+  - immobility threshold metadata in suptitle (`<=35 mm/s`),
+  - `.png/.pdf/.fig` outputs.
+- Latest immobility-only run output:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/cdf_only_20260311_123836`
+
 ## 2026-03-10
 
 ### Current State Summary

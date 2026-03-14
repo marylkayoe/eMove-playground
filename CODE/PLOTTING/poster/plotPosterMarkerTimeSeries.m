@@ -23,6 +23,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
 %   'verticalOffset'         - scalar offset applied per marker index (default 0)
 %   'smoothWindowFrames'     - moving average window in frames (default 1 = none)
 %   'clipSec'                - clip from start of stimulus segment (default 0)
+%   'preStimSec'             - seconds of context before stimulus onset (default 0)
+%   'postStimSec'            - seconds of context after stimulus end (default 0)
 %   'timeUnits'              - 'seconds' (default) or 'frames'
 %   'normalizeTimeToZero'    - start x-axis at 0 (default true)
 %   'lineWidth'              - line width (default 2.2)
@@ -33,6 +35,7 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
 %   'showLegend'             - logical (default true if multiple traces)
 %   'gridOn'                 - logical (default true)
 %   'showSpeedPanel'         - add lower panel with instantaneous speed (default false)
+%   'layoutPreset'           - 'stacked' (default) or 'stackedWithRightPanels'
 %   'speedWindowSec'         - sliding window for speed calc in seconds (default 0.1)
 %   'speedShowAverage'       - overlay average speed across markers (default true)
 %   'speedColors'            - nLines x 3 color matrix for speed traces or [] for auto
@@ -41,6 +44,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
 %   'immobileMinDurationSec' - minimum immobile bout duration to shade (default 1)
 %   'immobileShadeColor'     - RGB color for shaded boxes (default [0.75 0.75 0.75])
 %   'immobileShadeAlpha'     - shading alpha (default 0.22)
+%   'showStimBounds'         - draw stimulus start/end lines (default true)
+%   'stimBoundColor'         - RGB color for stimulus boundary lines (default [0.25 0.25 0.25])
 %   'savePath'               - file path to export figure (default '')
 %
 % Output:
@@ -62,6 +67,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     addParameter(p, 'verticalOffset', 0, @(x) isnumeric(x) && isscalar(x));
     addParameter(p, 'smoothWindowFrames', 1, @(x) isnumeric(x) && isscalar(x) && x >= 1);
     addParameter(p, 'clipSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+    addParameter(p, 'preStimSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+    addParameter(p, 'postStimSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
     addParameter(p, 'timeUnits', 'seconds', @(x) ischar(x) || isstring(x));
     addParameter(p, 'normalizeTimeToZero', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'lineWidth', 2.2, @(x) isnumeric(x) && isscalar(x) && x > 0);
@@ -72,14 +79,17 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     addParameter(p, 'showLegend', [], @(x) isempty(x) || (islogical(x) && isscalar(x)));
     addParameter(p, 'gridOn', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'showSpeedPanel', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'layoutPreset', 'stacked', @(x) ischar(x) || isstring(x));
     addParameter(p, 'speedWindowSec', 0.1, @(x) isnumeric(x) && isscalar(x) && x > 0);
     addParameter(p, 'speedShowAverage', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'speedColors', [], @(x) isempty(x) || isnumeric(x));
     addParameter(p, 'showImmobileShading', true, @(x) islogical(x) && isscalar(x));
-    addParameter(p, 'immobileSpeedThreshold', 25, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+    addParameter(p, 'immobileSpeedThreshold', 35, @(x) isnumeric(x) && isscalar(x) && x >= 0);
     addParameter(p, 'immobileMinDurationSec', 1, @(x) isnumeric(x) && isscalar(x) && x >= 0);
     addParameter(p, 'immobileShadeColor', [0.75 0.75 0.75], @(x) isnumeric(x) && numel(x) == 3);
     addParameter(p, 'immobileShadeAlpha', 0.22, @(x) isnumeric(x) && isscalar(x) && x >= 0 && x <= 1);
+    addParameter(p, 'showStimBounds', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'stimBoundColor', [0.25 0.25 0.25], @(x) isnumeric(x) && numel(x) == 3);
     addParameter(p, 'savePath', '', @(x) ischar(x) || isstring(x));
     parse(p, trialData, markerNames, videoID, varargin{:});
 
@@ -91,7 +101,9 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     extracted = extractMarkerTrajectoryForVideo( ...
         trialData, markerNames, videoID, ...
         'mocapMetaData', p.Results.mocapMetaData, ...
-        'clipSec', p.Results.clipSec);
+        'clipSec', p.Results.clipSec, ...
+        'preStimSec', p.Results.preStimSec, ...
+        'postStimSec', p.Results.postStimSec);
 
     data = extracted.trajectories;
     rawLabels = extracted.markerNames;
@@ -102,7 +114,9 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
         refExtracted = extractMarkerTrajectoryForVideo( ...
             trialData, refMarker, videoID, ...
             'mocapMetaData', p.Results.mocapMetaData, ...
-            'clipSec', p.Results.clipSec);
+            'clipSec', p.Results.clipSec, ...
+            'preStimSec', p.Results.preStimSec, ...
+            'postStimSec', p.Results.postStimSec);
         refTraj = refExtracted.trajectories(:, :, 1);
         for m = 1:size(data, 3)
             data(:, :, m) = data(:, :, m) - refTraj;
@@ -130,6 +144,7 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     end
 
     x = localBuildX(extracted, p.Results.timeUnits, p.Results.normalizeTimeToZero);
+    stimBoundsX = localBuildStimBoundsX(extracted, p.Results.timeUnits, p.Results.normalizeTimeToZero);
 
     % Compute marker speeds / average speed when needed for speed panel and/or immobility shading.
     markerSpeeds = [];
@@ -166,6 +181,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
 
     ax = p.Results.plotWhere;
     speedAx = [];
+    rightTopAx = [];
+    rightBottomAx = [];
     if p.Results.showSpeedPanel && ~isempty(ax)
         error('plotPosterMarkerTimeSeries:PlotWhereWithSpeedPanel', ...
             'showSpeedPanel=true is not supported when ''plotWhere'' is provided.');
@@ -174,9 +191,20 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     if isempty(ax)
         fig = figure('Color', 'w');
         if p.Results.showSpeedPanel
-            tl = tiledlayout(fig, 2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
-            ax = nexttile(tl, 1);
-            speedAx = nexttile(tl, 2);
+            switch lower(strtrim(char(string(p.Results.layoutPreset))))
+                case 'stackedwithrightpanels'
+                    set(fig, 'Units', 'pixels', 'Position', [120 80 1380 860]);
+                    ax = axes('Parent', fig, 'Position', [0.08 0.58 0.60 0.34]);
+                    speedAx = axes('Parent', fig, 'Position', [0.08 0.12 0.60 0.34]);
+                    rightTopAx = axes('Parent', fig, 'Position', [0.74 0.56 0.22 0.32]);
+                    rightBottomAx = axes('Parent', fig, 'Position', [0.74 0.14 0.22 0.26]);
+                    axis(rightTopAx, 'off');
+                    axis(rightBottomAx, 'off');
+                otherwise
+                    tl = tiledlayout(fig, 2, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+                    ax = nexttile(tl, 1);
+                    speedAx = nexttile(tl, 2);
+            end
         else
             ax = axes('Parent', fig);
         end
@@ -189,13 +217,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     hLines = gobjects(size(y, 2), 1);
     for c = 1:size(y, 2)
         thisColor = colors(c, :);
-        thisLineWidth = p.Results.lineWidth;
-        if c == 1
-            thisColor = [0 0 0];
-            thisLineWidth = p.Results.lineWidth + 1.0;
-        end
         hLines(c) = plot(ax, x, y(:, c), ...
-            'LineWidth', thisLineWidth, ...
+            'LineWidth', p.Results.lineWidth, ...
             'Color', thisColor, ...
             'DisplayName', labels{c});
         if p.Results.lineAlpha < 1
@@ -211,6 +234,9 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
         immobilePatchHandles = localShadeBooleanSpans( ...
             ax, x, immobileMask, p.Results.immobileShadeColor, p.Results.immobileShadeAlpha);
         uistack(hLines, 'top');
+    end
+    if p.Results.showStimBounds
+        localDrawStimBounds(ax, stimBoundsX, p.Results.stimBoundColor);
     end
 
     xLabelStr = char(string(p.Results.xLabel));
@@ -251,7 +277,16 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
         showLegend = (size(y, 2) > 1);
     end
     if showLegend
-        lgd = legend(ax, 'show', 'Location', char(string(p.Results.legendLocation)), 'Interpreter', 'none');
+        if strcmpi(char(string(p.Results.layoutPreset)), 'stackedWithRightPanels') && ~isempty(rightBottomAx)
+            cla(rightBottomAx);
+            axis(rightBottomAx, 'off');
+            lgd = legend(rightBottomAx, hLines, labels, ...
+                'Location', 'northwest', ...
+                'Interpreter', 'none', ...
+                'Box', 'off');
+        else
+            lgd = legend(ax, 'show', 'Location', char(string(p.Results.legendLocation)), 'Interpreter', 'none');
+        end
         set(lgd, 'FontSize', p.Results.legendFontSize);
     end
 
@@ -282,10 +317,18 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
                 uistack(speedAvgHandle, 'top');
             end
         end
-        yline(speedAx, p.Results.immobileSpeedThreshold, '--', ...
+        if p.Results.showStimBounds
+            localDrawStimBounds(speedAx, stimBoundsX, p.Results.stimBoundColor);
+        end
+        hThr = yline(speedAx, p.Results.immobileSpeedThreshold, '--', ...
             sprintf('Immobile threshold (%.1f mm/s)', p.Results.immobileSpeedThreshold), ...
             'Color', [0.35 0.35 0.35], 'LineWidth', 1.0, ...
             'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'bottom');
+        set(hThr, 'HandleVisibility', 'off');
+        try
+            hThr.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        catch
+        end
         ylabel(speedAx, 'Speed (mm/s)', 'FontSize', 12, 'FontWeight', 'bold');
         xlabel(speedAx, xLabelStr, 'FontSize', 12, 'FontWeight', 'bold');
         title(speedAx, sprintf('Instantaneous speed (window = %.3g s, immobile >= %.2g s)', ...
@@ -313,6 +356,8 @@ function R = plotPosterMarkerTimeSeries(trialData, markerNames, videoID, varargi
     R.dimensionIndex = dimIdx;
     R.dimensionLabel = dimLabel;
     R.markerLabelsPlotted = labels;
+    R.rightTopAxes = rightTopAx;
+    R.rightBottomAxes = rightBottomAx;
 end
 
 function hPatches = localShadeBooleanSpans(ax, x, mask, shadeColor, shadeAlpha)
@@ -386,6 +431,45 @@ function x = localBuildX(extracted, timeUnits, normalizeToZero)
 
     if normalizeToZero
         x = x - x(1);
+    end
+end
+
+function stimBoundsX = localBuildStimBoundsX(extracted, timeUnits, normalizeToZero)
+    timeUnits = lower(strtrim(char(string(timeUnits))));
+    switch timeUnits
+        case {'seconds', 'sec', 's'}
+            stimBoundsX = [extracted.stimStartOffsetSec, extracted.stimEndOffsetSec];
+        case {'frames', 'frame'}
+            stimBoundsX = [extracted.stimStartIdx, extracted.stimEndIdx];
+        otherwise
+            error('plotPosterMarkerTimeSeries:BadTimeUnits', ...
+                'timeUnits must be ''seconds'' or ''frames''.');
+    end
+
+    if ~normalizeToZero && strcmp(timeUnits, 'frame')
+        stimBoundsX = [extracted.stimStartFrame, extracted.stimEndFrame];
+    end
+end
+
+function localDrawStimBounds(ax, stimBoundsX, color)
+    if isempty(stimBoundsX) || numel(stimBoundsX) ~= 2 || any(~isfinite(stimBoundsX))
+        return;
+    end
+    h1 = xline(ax, stimBoundsX(1), '--', 'Stim start', ...
+        'Color', color, ...
+        'LineWidth', 1.2, ...
+        'LabelHorizontalAlignment', 'left', ...
+        'LabelVerticalAlignment', 'bottom');
+    h2 = xline(ax, stimBoundsX(2), '--', 'Stim end', ...
+        'Color', color, ...
+        'LineWidth', 1.2, ...
+        'LabelHorizontalAlignment', 'left', ...
+        'LabelVerticalAlignment', 'bottom');
+    set([h1 h2], 'HandleVisibility', 'off');
+    try
+        h1.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        h2.Annotation.LegendInformation.IconDisplayStyle = 'off';
+    catch
     end
 end
 

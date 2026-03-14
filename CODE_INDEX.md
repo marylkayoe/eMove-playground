@@ -58,6 +58,18 @@ This document maps the current MATLAB codebase so new contributors can quickly f
 
 - `CODE/PLOTTING/poster/gui/`
   - Interactive exploration tools.
+  - Main files:
+    - `launchMicromovementExampleBrowser.m`
+
+- `CODE/PLOTTING/gui/`
+  - Interactive non-poster plotting browsers.
+  - Main files:
+    - `launchCdfComparisonBrowser.m`
+
+- `CODE/APPS/`
+  - Deployment-aware app entrypoints for packaged or user-facing tools.
+  - Main files:
+    - `launchMicromovementExplorerApp.m`
 
 ## 3) Core Data Object (`trialData`)
 
@@ -94,6 +106,9 @@ Current expected fields:
   - `CODE/HELPERS/buildMarkerGroupsFromAssignmentTable.m`
   - `scripts/generate_testing_templates.m`
   - `scripts/launch_bodypart_grouping_helper.m`
+  - `scripts/launch_micromovement_example_browser.m`
+  - `scripts/launch_cdf_comparison_browser.m`
+  - `scripts/make_disgust_neutral_panels.m`
   - `scripts/run_testing_smoke.m`
   - `scripts/plot_session_timeline_batch.m`
   - `scripts/run_full_analysis_manifest_once.m`
@@ -154,3 +169,15 @@ These files contain computation logic and should be treated as approval-required
 
 - `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigureAllPairs.m`
   - Pair filtering and `maxPairs` selection are now passed through panel auto-resolution (wrapper no longer forces all pairs).
+
+## 8) Current Presentation Tooling
+
+- Subject-level example mining:
+  - `CODE/PLOTTING/poster/gui/launchMicromovementExampleBrowser.m`
+  - use this to search for illustrative trial windows with pre/post context and immobility shading.
+- Group-level emotion comparison:
+  - `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
+  - use this to compare one or more emotions across selected bodyparts and plot modes.
+- Presentation-ready focused export:
+  - `scripts/make_disgust_neutral_panels.m`
+  - currently oriented toward producing Panel C / Panel D style CDF figures for collaborator or funder slides.

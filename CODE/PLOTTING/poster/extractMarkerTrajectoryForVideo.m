@@ -12,6 +12,8 @@ function S = extractMarkerTrajectoryForVideo(trialData, markerNames, videoID, va
 % Name-value pairs:
 %   'mocapMetaData' - metadata struct (default trialData.metaData if present)
 %   'clipSec'       - seconds to clip from start of extracted segment (default 0)
+%   'preStimSec'    - seconds of context to include before stimulus onset (default 0)
+%   'postStimSec'   - seconds of context to include after stimulus end (default 0)
 %
 % Output struct S fields:
 %   trajectories - nFrames x 3 x nMarkers
@@ -20,6 +22,12 @@ function S = extractMarkerTrajectoryForVideo(trialData, markerNames, videoID, va
 %   timeSec      - nFrames x 1 time vector (seconds, starts at 0)
 %   frameRate    - scalar frame rate if available, else []
 %   videoID      - requested videoID
+%   stimStartFrame - stimulus onset frame index in the source recording
+%   stimEndFrame   - stimulus end frame index in the source recording
+%   stimStartIdx   - stimulus onset index within the extracted segment
+%   stimEndIdx     - stimulus end index within the extracted segment
+%   stimStartOffsetSec - stimulus onset time within the extracted segment
+%   stimEndOffsetSec   - stimulus end time within the extracted segment
 
     p = inputParser;
     addRequired(p, 'trialData', @isstruct);
@@ -27,6 +35,8 @@ function S = extractMarkerTrajectoryForVideo(trialData, markerNames, videoID, va
     addRequired(p, 'videoID', @(x) ischar(x) || isstring(x));
     addParameter(p, 'mocapMetaData', struct(), @isstruct);
     addParameter(p, 'clipSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+    addParameter(p, 'preStimSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+    addParameter(p, 'postStimSec', 0, @(x) isnumeric(x) && isscalar(x) && x >= 0);
     parse(p, trialData, markerNames, videoID, varargin{:});
 
     if ischar(markerNames) || isstring(markerNames)
@@ -72,9 +82,18 @@ function S = extractMarkerTrajectoryForVideo(trialData, markerNames, videoID, va
             'Resolved frame range is invalid for videoID "%s".', videoID);
     end
 
-    frameRange = startFrame:endFrame;
-
     frameRate = localGetFrameRate(metaData);
+    preFrames = 0;
+    postFrames = 0;
+    if ~isempty(frameRate)
+        preFrames = round(p.Results.preStimSec * frameRate);
+        postFrames = round(p.Results.postStimSec * frameRate);
+    end
+
+    extractStartFrame = max(1, startFrame - preFrames);
+    extractEndFrame = min(nTotalFrames, endFrame + postFrames);
+    frameRange = extractStartFrame:extractEndFrame;
+
     if isempty(frameRate)
         clipFrames = 0;
     else
@@ -119,6 +138,19 @@ function S = extractMarkerTrajectoryForVideo(trialData, markerNames, videoID, va
     S.timeSec = timeSec;
     S.frameRate = frameRate;
     S.videoID = videoID;
+    S.stimStartFrame = startFrame;
+    S.stimEndFrame = endFrame;
+    S.stimStartIdx = find(frameRange == startFrame, 1, 'first');
+    S.stimEndIdx = find(frameRange == endFrame, 1, 'last');
+    if isempty(S.stimStartIdx), S.stimStartIdx = 1; end
+    if isempty(S.stimEndIdx), S.stimEndIdx = numel(frameRange); end
+    if isempty(frameRate)
+        S.stimStartOffsetSec = S.stimStartIdx - 1;
+        S.stimEndOffsetSec = S.stimEndIdx - 1;
+    else
+        S.stimStartOffsetSec = (S.stimStartIdx - 1) ./ frameRate;
+        S.stimEndOffsetSec = (S.stimEndIdx - 1) ./ frameRate;
+    end
 end
 
 function frameRate = localGetFrameRate(metaData)

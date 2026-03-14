@@ -2,6 +2,71 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-03-14
+
+### Presentation-Oriented Interactive Tooling
+- Refined the micromovement example browser for collaborator-facing exploration:
+  - `CODE/PLOTTING/poster/gui/launchMicromovementExampleBrowser.m`
+  - `CODE/PLOTTING/poster/plotPosterMarkerTimeSeries.m`
+  - `CODE/PLOTTING/poster/extractMarkerTrajectoryForVideo.m`
+  - `CODE/APPS/launchMicromovementExplorerApp.m`
+- Current browser capabilities:
+  - subject/video/bodypart browsing from manifest-built MAT files,
+  - multi-bodypart selection via checkboxes,
+  - preserved video/bodypart/dimension/numeric settings when switching subjects,
+  - pre/post context around the selected stimulus segment,
+  - integrated right-side stick-figure overview,
+  - legend moved outside the main axes to keep traces readable.
+
+### Micromovement Browser UI Fixes
+- Control-panel layout was reorganized to remove overlapping controls and improve scanning.
+- Numeric edit controls (`pre`, `post`, threshold, smoothing) now keep their typed values until `Plot / Refresh`.
+- Refresh path was hardened by caching numeric fields and reusing them at plot time.
+- Subject switching now preserves:
+  - selected video ID (when available),
+  - selected bodyparts,
+  - dimension,
+  - pre/post values,
+  - threshold and smoothing,
+  - display-mode checkboxes.
+
+### New Group-Level CDF Comparison Browser
+- Added:
+  - `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
+  - `scripts/launch_cdf_comparison_browser.m`
+- Current capabilities:
+  - one or more bodypart groups selected by checkboxes,
+  - two or more emotions overlaid in one CDF figure,
+  - plotting modes:
+    - `perVideoMedian`
+    - `pooledRaw`
+    - `perSubjectRaw`
+  - full-speed vs micromovement regime,
+  - baseline-normalized vs absolute display,
+  - optional stats overlay.
+- Behavior note:
+  - pairwise stats annotation is only forwarded when exactly two emotions are selected;
+    for larger emotion sets, the overall KW annotation remains the main summary.
+
+### Presentation Figure Export Helper
+- Added:
+  - `scripts/make_disgust_neutral_panels.m`
+- Purpose:
+  - generate focused Panel C / Panel D candidate figures for `DISGUST` vs `NEUTRAL`
+    from the latest manifest-derived `resultsCell.mat`.
+- First run output:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/disgust_neutral_panels_20260314_164839`
+
+### Validation Runs
+- Micromovement browser smoke tests:
+  - browser launches successfully on latest manifest MAT corpus,
+  - control values persist through refresh after numeric-field fix,
+  - subject switching preserves browsing context.
+- CDF comparison browser smoke tests:
+  - loaded `5` emotions and `9` bodypart groups from current data/config,
+  - initial plot opens successfully,
+  - plot also opens successfully when `3` emotions are selected together.
+
 ## 2026-03-11
 
 ### Cross-Repository Reproducibility QC (external CODE vs playground CODE)

@@ -1,0 +1,13 @@
+% launch_micromovement_example_browser.m
+%
+% Convenience launcher for browsing subject/video/bodypart examples with
+% pre/post context and speed panel.
+
+repoRoot = '/Users/yoe/Documents/REPOS/eMove-playground';
+addpath(genpath(fullfile(repoRoot, 'CODE')));
+
+launchMicromovementExplorerApp( ...
+    'repoRoot', repoRoot, ...
+    'matRoot', '/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/matlab_from_manifest', ...
+    'groupCsv', fullfile(repoRoot, 'resources', 'bodypart_marker_grouping.csv'), ...
+    'stimCsv', fullfile(repoRoot, 'resources', 'stim_video_encoding_SINGLES.csv'));

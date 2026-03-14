@@ -26,6 +26,28 @@ Current analysis run scripts:
   `scripts/run_cdf_only_manifest.m`
 - KS immobility-only export (heatmaps + stick figures):  
   `scripts/run_ks_immobility_only.m`
+- Presentation-oriented DISGUST vs NEUTRAL panel export:
+  `scripts/make_disgust_neutral_panels.m`
+
+## Interactive Exploration Tools
+- Micromovement example browser:
+  - launcher: `scripts/launch_micromovement_example_browser.m`
+  - app-style entrypoint: `CODE/APPS/launchMicromovementExplorerApp.m`
+  - current capabilities:
+    - subject/video/bodypart browsing from manifest-built MAT files,
+    - preserved browsing context across subject switches,
+    - configurable pre/post stimulus context,
+    - integrated speed panel and immobility shading,
+    - right-side stick-figure overview.
+- Group-level CDF comparison browser:
+  - launcher: `scripts/launch_cdf_comparison_browser.m`
+  - main file: `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
+  - current capabilities:
+    - multi-bodypart selection,
+    - multi-emotion overlay in one plot,
+    - `perVideoMedian`, `pooledRaw`, or `perSubjectRaw` modes,
+    - full-speed vs micromovement comparison,
+    - baseline-normalized vs absolute display.
 
 ## Session Structure (Canonical)
 - One continuous mocap recording per subject session.
@@ -53,4 +75,4 @@ Detailed conventions are in [CONTRIBUTING_READABILITY.md](CONTRIBUTING_READABILI
 
 ---
 
-*Last updated: March 11, 2026*
+*Last updated: March 14, 2026*

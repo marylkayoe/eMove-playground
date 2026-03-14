@@ -4,6 +4,67 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-03-14
 
+### Regime-Distinctness Analysis Passes
+- Added pooled regime-distinctness script:
+  - `scripts/analyze_regime_distinctness_all_bodyparts.m`
+- Added subject-level follow-up script:
+  - `scripts/analyze_regime_distinctness_subject_level.m`
+- Added focused reversal/export script:
+  - `scripts/make_disgust_joy_head_regime_panels.m`
+- Added presentation-style regime slide builder:
+  - `scripts/make_regime_story_slide.m`
+- Added box-and-jitter regime-order figure builder:
+  - `scripts/make_regime_order_boxscatter_panels.m`
+
+### Regime Analysis Outputs (latest)
+- Head pooled reversal panel (`DISGUST` vs `JOY`):
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/disgust_joy_head_regime_20260314_194230`
+- Pooled regime-distinctness diagnostics, FEAR included:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/regime_distinctness_20260314_195024`
+- Subject-level regime summary:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/regime_subject_level_20260314_195909`
+- Story-slide draft, corrected FEAR-excluded version:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/regime_story_20260314_203008`
+- Pooled regime-distinctness diagnostics, FEAR excluded, upper-body focus:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/regime_distinctness_20260314_203938`
+- Subject-median box/jitter regime-order figure set:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/regime_order_boxscatter_20260314_204428`
+
+### Current Scientific Read From Today
+- Pooled upper-body motion and micromovement do not behave like a trivial
+  scaled-down copy of one another.
+- The strongest regime reorganization is in:
+  - `UTORSO`
+  - `HEAD`
+  - `UPPER_LIMB_L`
+  - `UPPER_LIMB_R`
+  - `WRIST_L`
+  - `WRIST_R`
+  - `LTORSO`
+- Lower limbs remain comparatively stable and are now omitted from the
+  presentation-focused figure variants.
+- Subject-level analysis is more conservative than the pooled analysis:
+  - pooled geometry shifts strongly,
+  - within-subject geometry shifts more modestly,
+  - therefore the working interpretation is "partially distinct regime",
+    not "completely separate motor regime".
+
+### Presentation-Figure Design Iteration
+- The original "full vs micro connected line" panel proved visually weak for
+  presentation purposes because:
+  - micro values sit on a much smaller scale,
+  - emotion ordering is hard to compare,
+  - the figure emphasizes regime compression more than regime reordering.
+- Replacement direction explored:
+  - separate-axis regime panels,
+  - FEAR-excluded summaries,
+  - upper-body-only focus,
+  - subject-level box-plus-jitter plots for readable order comparison.
+- Current conclusion:
+  - the new box/jitter panels are better than the connected-line plots,
+  - but the central presentation figure is still not fully solved and
+    requires another design pass.
+
 ### Presentation-Oriented Interactive Tooling
 - Refined the micromovement example browser for collaborator-facing exploration:
   - `CODE/PLOTTING/poster/gui/launchMicromovementExampleBrowser.m`

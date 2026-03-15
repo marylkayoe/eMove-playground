@@ -1,9 +1,9 @@
 function [isExcluded, subjectID] = isHardwiredExcludedSubjectID(rawSubjectID)
-% isHardwiredExcludedSubjectID - Hardwired exclusion rule for current dataset.
+% isHardwiredExcludedSubjectID - File-backed subject exclusion rule.
 %
 % Purpose:
-%   This project currently uses one dataset snapshot. For this stage, some
-%   subjects are intentionally excluded without configuration indirection.
+%   Legacy-compatible helper name kept for callers.
+%   Exclusion IDs are loaded from resources/project/subject_exclusions.csv.
 %
 % Inputs:
 %   rawSubjectID - char/string subject identifier from folder or file names.
@@ -13,7 +13,6 @@ function [isExcluded, subjectID] = isHardwiredExcludedSubjectID(rawSubjectID)
 %   subjectID  - normalized uppercase subject token used for matching.
 
     [subjectID, ~] = normalizeSubjectID(rawSubjectID);
-    excludedIDs = {'JANNE', 'AS2302', 'XC1301'};
+    excludedIDs = loadSubjectExclusionList();
     isExcluded = ismember(subjectID, excludedIDs);
 end
-

@@ -24,6 +24,8 @@ function resultsCell = runMotionMetricsBatch(folderPath, markerLists, varargin)
 %   'plotBands'               - bands to plot
 %   'stimVideoEmotionCoding'  - coding table for grouping colors
 %   'immobilityThreshold'     - speed threshold for immobility metrics (mm/s)
+%   'applySubjectExclusions'  - logical, skip excluded subject IDs (default true)
+%   'excludedSubjectIDs'      - explicit exclude list (default: from project CSV)
 %
 % Output:
 %   resultsCell - cell array; one entry per MAT file with fields:
@@ -54,15 +56,39 @@ function resultsCell = runMotionMetricsBatch(folderPath, markerLists, varargin)
     addParameter(p, 'plotBands', {'mid','tremor','high'});
     addParameter(p, 'stimVideoEmotionCoding', {});
     addParameter(p, 'immobilityThreshold', 35);
+    addParameter(p, 'applySubjectExclusions', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'excludedSubjectIDs', {}, @(x) iscell(x) || isstring(x) || ischar(x));
     parse(p, folderPath, markerLists, varargin{:});
 
     folderPath = char(folderPath);
     files = dir(fullfile(folderPath, '*.mat'));
     resultsCell = cell(numel(files), 1);
+    excludeIDs = {};
+    if p.Results.applySubjectExclusions
+        if isempty(p.Results.excludedSubjectIDs)
+            excludeIDs = loadSubjectExclusionList();
+        else
+            excludeIDs = cellstr(string(p.Results.excludedSubjectIDs));
+        end
+        excludeIDs = upper(strtrim(string(excludeIDs)));
+    end
 
     for i = 1:numel(files)
         fileName = files(i).name;
         matPath = fullfile(folderPath, fileName);
+
+        % derive subject ID from filename prefix, override with td.subjectID if present
+        subjID = '';
+        tok = regexp(fileName, '^([^_]+)_', 'tokens', 'once');
+        if ~isempty(tok)
+            subjID = tok{1};
+        end
+        if p.Results.applySubjectExclusions && ~isempty(strtrim(subjID))
+            if ismember(upper(string(subjID)), excludeIDs)
+                continue;
+            end
+        end
+
         data = load(matPath);
 
         if isfield(data, 'trialData')
@@ -73,14 +99,13 @@ function resultsCell = runMotionMetricsBatch(folderPath, markerLists, varargin)
             td = data.(structNames{1});
         end
 
-        % derive subject ID from filename prefix, override with td.subjectID if present
-        subjID = '';
-        tok = regexp(fileName, '^([^_]+)_', 'tokens', 'once');
-        if ~isempty(tok)
-            subjID = tok{1};
-        end
         if isfield(td, 'subjectID') && ~isempty(td.subjectID)
             subjID = char(td.subjectID);
+        end
+        if p.Results.applySubjectExclusions && ~isempty(strtrim(subjID))
+            if ismember(upper(string(subjID)), excludeIDs)
+                continue;
+            end
         end
 
         [res, sumTbl] = getMotionMetricsAcrossStims(td, markerLists, ...
@@ -103,4 +128,5 @@ function resultsCell = runMotionMetricsBatch(folderPath, markerLists, varargin)
             'results', res, ...
             'summaryTable', sumTbl);
     end
+    resultsCell = resultsCell(~cellfun(@isempty, resultsCell));
 end

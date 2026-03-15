@@ -1,0 +1,76 @@
+clearvars;
+clc;
+
+addpath(genpath('/Users/yoe/Documents/REPOS/eMove-playground/CODE'));
+
+S = load('/Users/yoe/Documents/DATA/HUMANMOCAP_by_subject/derived/analysis_runs/20260311_110642/resultsCell.mat', 'resultsCell');
+resultsCell = S.resultsCell;
+
+opts = detectImportOptions('/Users/yoe/Documents/REPOS/eMove-playground/resources/stim_video_encoding_SINGLES.csv', ...
+    'VariableNamingRule', 'preserve');
+opts = setvartype(opts, intersect({'videoID','emotionTag','groupCode'}, opts.VariableNames, 'stable'), 'string');
+T = readtable('/Users/yoe/Documents/REPOS/eMove-playground/resources/stim_video_encoding_SINGLES.csv', opts);
+
+include = localToLogical(T.include);
+vid = upper(strtrim(string(T.videoID)));
+if ismember('isBaseline', T.Properties.VariableNames)
+    isBase = localToLogical(T.isBaseline);
+    vid(isBase) = "BASELINE";
+end
+isNum = ~cellfun('isempty', regexp(cellstr(vid), '^\d+$'));
+vid(isNum) = compose('%04d', str2double(vid(isNum)));
+
+if ismember('groupCode', T.Properties.VariableNames)
+    code = upper(strtrim(string(T.groupCode)));
+else
+    code = upper(strtrim(string(T.emotionTag)));
+end
+codingTable = table(vid(include), code(include), 'VariableNames', {'videoID','groupCode'});
+
+markerGroups = {'HEAD','UTORSO','LTORSO','UPPER_LIMB_L','UPPER_LIMB_R','LOWER_LIMB_L','LOWER_LIMB_R'};
+
+fprintf('\n=== Debug A: original cdf-only settings ===\n');
+plotSpeedCDFByStimGroupFromResultsCell(resultsCell, codingTable, ...
+    'markerGroups', markerGroups, ...
+    'plotMode', 'pooledRaw', ...
+    'useImmobile', true, ...
+    'doBaselineNormalize', true, ...
+    'baselineEmotion', 'BASELINE', ...
+    'emotionExclude', {'BASELINE','0','X','AMUSEMENT',''});
+
+fprintf('\n=== Debug B: relaxed baseline sample threshold ===\n');
+plotSpeedCDFByStimGroupFromResultsCell(resultsCell, codingTable, ...
+    'markerGroups', markerGroups, ...
+    'plotMode', 'pooledRaw', ...
+    'useImmobile', true, ...
+    'doBaselineNormalize', true, ...
+    'minBaselineSamples', 20, ...
+    'baselineEmotion', 'BASELINE', ...
+    'emotionExclude', {'BASELINE','0','X','AMUSEMENT',''});
+
+fprintf('\n=== Debug C: pooledRaw from speedArray (not immobile-only arrays) ===\n');
+plotSpeedCDFByStimGroupFromResultsCell(resultsCell, codingTable, ...
+    'markerGroups', markerGroups, ...
+    'plotMode', 'pooledRaw', ...
+    'useImmobile', false, ...
+    'immobilityField', 'speedArray', ...
+    'doBaselineNormalize', true, ...
+    'minBaselineSamples', 20, ...
+    'baselineFromField', 'speedArray', ...
+    'baselineEmotion', 'BASELINE', ...
+    'emotionExclude', {'BASELINE','0','X','AMUSEMENT',''});
+
+fprintf('\nDone debug plots.\n');
+
+function out = localToLogical(v)
+if islogical(v)
+    out = v;
+    return;
+end
+if isnumeric(v)
+    out = v ~= 0;
+    return;
+end
+s = upper(strtrim(string(v)));
+out = (s == "1" | s == "TRUE" | s == "T" | s == "YES" | s == "Y");
+end

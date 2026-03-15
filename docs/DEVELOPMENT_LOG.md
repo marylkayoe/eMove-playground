@@ -337,3 +337,159 @@ This document tracks project state, implementation decisions, and validation run
    - unchanged
    - mitigated
    - resolved (with file reference)
+
+## 2026-03-15
+
+### Regime-Reversal QC And Presentation Work
+
+#### 1) Combined pooled reversal scatter
+- Script:
+  - `scripts/make_combined_regime_pair_scatter.m`
+- Current figure characteristics:
+  - upper-body only
+  - `FEAR` excluded
+  - point color = emotion pair
+  - point number = bodypart
+  - right-side legend includes pair colors and stick-figure bodypart numbering
+  - shaded reversal quadrants with explanatory labels
+- Latest discussed export:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/combined_regime_pair_scatter_20260315_124138/combined_regime_pair_scatter.png`
+
+#### 2) Subject-level reversal cloud
+- Scripts:
+  - `scripts/make_subject_regime_pair_scatter.m`
+  - `scripts/make_subject_regime_pair_scatter_combined.m`
+- Outputs:
+  - per-bodypart subject clouds:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/subject_regime_pair_scatter_20260315_081704`
+  - combined subject cloud:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/subject_regime_pair_scatter_combined_20260315_082032`
+- Interpretation:
+  - subject-level geometry is broader and less clustered than pooled-raw
+  - this is expected because the pooling/weighting is different
+
+#### 3) Reversal stability QC
+- Script:
+  - `scripts/run_reversal_stability_qc.m`
+- Outputs:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/reversal_stability_qc_20260315_083300`
+  - `/Users/yoe/Documents/REPOS/eMove-playground/docs/REVERSAL_STABILITY_REPORT_2026-03-15.md`
+- Main conclusion:
+  - pooled reversals are selective rather than universal
+  - the most stable cells are disgust-centered, especially torso-weighted
+
+#### 4) Stable reversal summary figures
+- Scripts:
+  - `scripts/make_stable_reversal_summary_figure.m`
+  - `scripts/make_stable_reversal_summary_allbody.m`
+  - `scripts/make_reversal_probability_summary_05.m`
+- Outputs:
+  - stable upper-body summary:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/stable_reversal_summary_20260315_083816`
+  - all-body context summary:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/stable_reversal_summary_allbody_20260315_084958`
+  - softer `>=0.50` probability view:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/reversal_probability_summary_05_20260315_085521`
+- Main conclusion:
+  - surviving cells are concentrated in `UTORSO`, `LTORSO`, some `HEAD`, and
+    little/no lower-limb signal
+
+#### 5) Subject-contrast inclusion sensitivity
+- Script:
+  - `scripts/run_subject_contrast_filter_qc.m`
+- Compared methods:
+  - reference: all comparable subject cells
+  - dead-zone filter: exclude near-zero contrast cells
+  - bootstrap-CI filter: include only if full or micro contrast CI excludes zero
+- Outputs:
+  - `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/subject_contrast_filter_qc_20260315_092041`
+  - `/Users/yoe/Documents/REPOS/eMove-playground/docs/SUBJECT_CONTRAST_FILTER_REPORT_2026-03-15.md`
+- Practical settings used:
+  - upper-body only
+  - `FEAR` excluded
+  - dead-zone quantile `0.20`
+  - bootstrap count `30` for pragmatic turnaround
+- Result summary:
+  - mean reversal fractions changed only slightly across methods
+  - the broad reversal picture is not solely created by trivial near-zero cells
+  - fragile cells remain concentrated in weaker non-disgust comparisons
+
+### Current Working Read
+- The scientifically safest current message is:
+  - regime dependence exists
+  - it is selective rather than universal
+  - the clearest stable part of the picture is disgust-centered and
+    torso-weighted
+- Lower limbs remain useful as a negative-control region.
+
+### 6) Subject Example Screening And Final Selection
+- Script:
+  - `scripts/screen_disgust_example_subjects.m`
+- Candidate subjects screened:
+  - `KN9309`
+  - `MB0502`
+  - `XC3002`
+  - `XJ1505`
+  - `XJ1802`
+  - `XM3001`
+- Practical outcome:
+  - `KN9309` gave the strongest reversal count,
+  - `XJ1802` was the cleanest "hygienic" compromise,
+  - `SC3001` was ultimately retained as the main narrative subject because the
+    reversal pattern is visually clearest across `HEAD`, `UTORSO`, and
+    `LTORSO`, even though its immobility bouts are less tidy.
+
+### 7) Subject And Pooled Density Panels
+- Scripts:
+  - `scripts/make_single_subject_disgust_density_figure.m`
+  - `scripts/make_disgust_subject_example_pack.m`
+  - `scripts/make_pooled_disgust_density_figure.m`
+- Current preferred outputs:
+  - subject example (`SC3001`):
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/disgust_subject_pack_20260315_124849_SC3001`
+  - pooled density:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/pooled_disgust_density_20260315_131050`
+- Figure-design decision:
+  - density plots with separate full/micro x-axes were preferred over CDFs for
+    the subject narrative because the regime-specific scales differ too much for
+    a shared axis to read cleanly.
+
+### 8) KS Stick-Figure Iteration
+- Scripts:
+  - `scripts/make_allpairs_signed_ks_stickfigures.m`
+  - `scripts/make_disgust_fear_ks_stickfigures.m`
+- Result:
+  - a signed/directional color version was generated and rejected as too
+    visually confusing and too easy to misread.
+  - the unsigned KS style remains the trusted presentation style.
+- Current preferred outputs:
+  - disgust-focused:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/disgust_fear_ks_stickfigures_20260315_133403/disgust_ks_stickfigures.png`
+  - fear-focused:
+    `/Users/yoe/Documents/REPOS/eMove-playground/outputs/figures/disgust_fear_ks_stickfigures_20260315_133403/fear_ks_stickfigures.png`
+
+### 9) Semantics / Trust Caveats That Must Stay Attached To The Figures
+- Pair order and subtraction sign materially alter scatter quadrants.
+  - This was not a cosmetic issue; it changed the apparent story.
+  - Future scatter figures must state subtraction direction explicitly and keep
+    one convention throughout the whole figure family.
+- Pooled raw and subject-level plots answer different questions.
+  - pooled raw:
+    - sample-weighted group summary
+  - subject-level:
+    - person-level spread before pooling
+- The "many reversals everywhere" reading was too strong and is no longer the
+  project interpretation.
+- Current approved wording should stay close to:
+  - disgust-centered,
+  - torso-weighted,
+  - group-level regime dependence,
+  - with head as a secondary contributor,
+  - and lower limbs as mostly negative-control-like.
+
+### 10) Figure Cleanup Intent
+- By end of day, the figure folders should stop reflecting every intermediate
+  run and instead keep the latest run in each figure family.
+- The goal of the cleanup is not to erase analysis history from the docs, but to
+  reduce directory clutter and keep only the latest representative outputs for
+  each panel type.

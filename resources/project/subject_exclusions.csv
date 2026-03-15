@@ -1,0 +1,6 @@
+subjectID,exclude,reason
+AB1502,1,Low-quality subject; user requested exclusion
+JANNE,1,Dataset-level exclusion
+AS2302,1,Dataset-level exclusion
+XC1301,1,Dataset-level exclusion
+

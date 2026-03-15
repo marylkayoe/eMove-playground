@@ -17,6 +17,8 @@ function resultsCell = runMotionMetricsBatchFromManifest(manifestInput, matRoot,
 %   'keepLatestMatPerSubject' - logical, pick latest MAT when multiple exist (default true)
 %   'continueOnError'         - logical, keep processing after subject-level errors (default true)
 %   'verbose'                 - logical, print progress (default true)
+%   'applySubjectExclusions'  - logical, skip excluded subject IDs (default true)
+%   'excludedSubjectIDs'      - explicit exclude list (default: from project CSV)
 %
 %   The remaining options are forwarded to getMotionMetricsAcrossStims:
 %   'markerGroupNames', 'videoIDs', 'FRAMERATE', 'speedWindow',
@@ -35,6 +37,8 @@ function resultsCell = runMotionMetricsBatchFromManifest(manifestInput, matRoot,
     addParameter(p, 'keepLatestMatPerSubject', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'continueOnError', true, @(x) islogical(x) && isscalar(x));
     addParameter(p, 'verbose', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'applySubjectExclusions', true, @(x) islogical(x) && isscalar(x));
+    addParameter(p, 'excludedSubjectIDs', {}, @(x) iscell(x) || isstring(x) || ischar(x));
     addParameter(p, 'markerGroupNames', {});
     addParameter(p, 'videoIDs', {});
     addParameter(p, 'FRAMERATE', 120);
@@ -56,6 +60,18 @@ function resultsCell = runMotionMetricsBatchFromManifest(manifestInput, matRoot,
 
     manifestTbl = localLoadManifestTable(p.Results.manifestInput);
     subjects = localCollectSubjectsFromManifest(manifestTbl);
+    if p.Results.applySubjectExclusions
+        if isempty(p.Results.excludedSubjectIDs)
+            excludeIDs = loadSubjectExclusionList();
+        else
+            excludeIDs = cellstr(string(p.Results.excludedSubjectIDs));
+        end
+        excludeIDs = upper(strtrim(string(excludeIDs)));
+        if ~isempty(excludeIDs)
+            keep = ~ismember(upper(string(subjects)), excludeIDs);
+            subjects = subjects(keep);
+        end
+    end
     if isempty(subjects)
         warning('runMotionMetricsBatchFromManifest:NoSubjects', ...
             'No subjects found in manifest. Returning empty resultsCell.');

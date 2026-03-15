@@ -1,0 +1,9 @@
+normalization,regime,emotion,nSamples,medianValue
+absolute,full speed,DISGUST,399627,68.8012245797796
+absolute,full speed,JOY,399492,73.9095838351398
+absolute,micromovement <= 35 mm/s,DISGUST,106058,20.4382071187775
+absolute,micromovement <= 35 mm/s,JOY,100370,19.4276727750141
+baseline-normalized,full speed,DISGUST,399627,7.83853733278019
+baseline-normalized,full speed,JOY,399492,8.54659642499891
+baseline-normalized,micromovement <= 35 mm/s,DISGUST,106058,2.5425301879252
+baseline-normalized,micromovement <= 35 mm/s,JOY,100370,2.31188197280351

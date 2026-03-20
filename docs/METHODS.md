@@ -1,7 +1,7 @@
 # Methods (Draft)
 
 Version: 0.3 (working draft)  
-Date: 2026-03-15
+Date: 2026-03-20
 
 ## 1) Study Aim
 
@@ -81,6 +81,21 @@ Current rules:
 - ignore Unity logs before that anchor,
 - if post-baseline video IDs repeat, keep first chronological occurrence for mapping,
 - map segmented windows onto continuous mocap using metadata timing.
+
+### 5.1 Auxiliary Modality Alignment Note (2026-03-20 working state)
+
+Current practical alignment rule set:
+- eye tracking should be attached directly from the Unity stimulus logs,
+- EDA can currently be aligned most directly because the Shimmer CSV carries local timestamps,
+- ECG / HR currently requires an explicit alignment-provenance note because example-session alignment was inferred from the Movesense UTC header timestamp.
+
+Worked-example memo and concrete file/timing details:
+- `docs/AUX_MODALITY_INTEGRATION_2026-03-20.md`
+
+Operational recommendation for the next MATLAB integration phase:
+- continue to treat Unity timing as the canonical trial-definition clock,
+- express EDA / ECG / eye windows relative to Unity onset and offset,
+- carry a per-modality timing-confidence / alignment-method field into subject MAT outputs.
 
 ## 6) Configuration Tables
 

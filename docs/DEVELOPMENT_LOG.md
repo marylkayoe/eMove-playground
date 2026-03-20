@@ -2,6 +2,39 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-03-20
+
+### Auxiliary Modality Visualization And Integration Memo
+- Ran a quick cross-modality visualization pass outside the main MATLAB pipeline to inspect:
+  - eye tracking from Unity logs,
+  - ECG / HR from Movesense,
+  - EDA from Shimmer.
+- Main purpose of this pass:
+  - document workable alignment assumptions and next MATLAB integration steps before folding these modalities into motion-analysis trial structures.
+- Added integration memo:
+  - `docs/AUX_MODALITY_INTEGRATION_2026-03-20.md`
+
+### Worked Example Alignment Decisions Recorded
+- Example stimulus used for the quick pass:
+  - `x_0302`
+  - Unity window: `2025-08-15 14:34:55` to `14:35:25`
+- Eye data interpretation:
+  - Unity logs remain the canonical trial clock and can carry eye variables stimulus-wise without extra cross-device sync.
+- EDA alignment interpretation:
+  - Shimmer timestamps can be aligned directly to the local session clock in the worked example.
+- ECG alignment interpretation:
+  - example-session alignment was inferred from the Movesense UTC header timestamp converted to local session time,
+  - therefore ECG timing should currently carry explicit provenance / confidence metadata in future MATLAB integration.
+
+### Recommended Next MATLAB Work
+- Add auxiliary modality windows into the same trial-level structures already used for mocap segmentation.
+- Preserve:
+  - source file provenance,
+  - sample rate,
+  - alignment method,
+  - timing-confidence flags.
+- Build simple multimodal QC figures in MATLAB before any inferential multimodal analysis.
+
 ## 2026-03-14
 
 ### Regime-Distinctness Analysis Passes

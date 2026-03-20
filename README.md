@@ -57,6 +57,25 @@ Current analysis run scripts:
 
 See [CODE_INDEX.md](CODE_INDEX.md) for a file-by-file map.
 
+## Auxiliary Modality Integration Status
+- Current raw-data modalities already available around the mocap pipeline:
+  - eye tracking from Unity logs,
+  - EDA from Shimmer,
+  - ECG / HR from Movesense.
+- Current parser entry points already in the MATLAB codebase:
+  - `loadUnityEyeLogCSV`
+  - `loadShimmerEDACSV`
+  - `loadMovesenseECGCSV`
+  - `loadModalitySignalsFromInventory`
+- A concrete integration memo from the 2026-03-20 visualization/alignment pass is here:
+  - [docs/AUX_MODALITY_INTEGRATION_2026-03-20.md](docs/AUX_MODALITY_INTEGRATION_2026-03-20.md)
+- Operational recommendation for the next MATLAB step:
+  - keep Unity timing as the canonical trial clock,
+  - attach auxiliary modality windows to the same per-trial structures used for mocap segmentation,
+  - preserve modality-specific alignment provenance, especially for ECG.
+
+See [CODE_INDEX.md](CODE_INDEX.md) for a file-by-file map.
+
 ## Readability And Editing Policy
 - Code should be student-readable: clear names, explicit assumptions, and comments for non-obvious logic.
 - Any change that affects computed values (speed, spectral features, thresholds, statistics) requires explicit owner approval before implementation.
@@ -75,4 +94,4 @@ Detailed conventions are in [CONTRIBUTING_READABILITY.md](CONTRIBUTING_READABILI
 
 ---
 
-*Last updated: March 14, 2026*
+*Last updated: March 20, 2026*

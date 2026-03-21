@@ -35,6 +35,32 @@ This document tracks project state, implementation decisions, and validation run
   - timing-confidence flags.
 - Build simple multimodal QC figures in MATLAB before any inferential multimodal analysis.
 
+### EDA Summary Features Clarified During Figure Iteration
+- The most useful compact EDA descriptors from the quick collaborator-facing
+  figure iteration were:
+  - tonic slope over the Unity-defined `0–30 s` stimulus window,
+  - phasic spike count over the same `0–30 s` stimulus window.
+- Current working interpretation:
+  - tonic slope is a plausible descriptive proxy for gradual conductance rise
+    or fall during a trial,
+  - phasic spike count is a plausible descriptive proxy for the frequency of
+    short phasic responses during a trial.
+- Current limitation:
+  - both summaries are still exploratory and should be re-implemented and
+    validated in the MATLAB pipeline before they are treated as analysis
+    variables.
+
+### EDA QC Figure Design Direction
+- The most stable presentation-oriented EDA layout from the iteration ended up
+  using:
+  - full-session tonic conductance with Unity stimulus markers,
+  - full-session phasic trace with the same marker scheme,
+  - a compact stimulus-aligned EDA comparison panel,
+  - and a per-stimulus summary panel showing tonic slope plus phasic spike
+    count.
+- A non-y-aligned tonic trace view was tested and rejected as not useful for
+  interpretation.
+
 ## 2026-03-14
 
 ### Regime-Distinctness Analysis Passes

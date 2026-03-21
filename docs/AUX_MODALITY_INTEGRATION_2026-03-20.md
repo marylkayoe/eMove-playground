@@ -84,6 +84,18 @@ Immediate MATLAB implication:
   - phasic component,
   - stimulus-centered windows with configurable pre/post padding.
 
+Current exploratory summary features that looked useful in the quick pass:
+- tonic EDA slope over the Unity-defined `0–30 s` stimulus interval,
+- phasic spike count within the same `0–30 s` stimulus interval.
+
+Practical interpretation at this stage:
+- tonic slope can serve as a compact per-trial descriptor of slow conductance
+  increase or decrease during a stimulus,
+- phasic spike count can serve as a compact per-trial descriptor of short-lived
+  phasic response frequency during a stimulus,
+- both should currently be treated as descriptive QC / exploratory features,
+  not finalized physiological endpoints.
+
 ### 3) ECG / HR
 
 Current practical interpretation:
@@ -152,6 +164,16 @@ Recommended default for future QC plots:
   - `10 s` for compact modality QC,
   - optionally `60 s` for slower EDA recovery views.
 
+Recommended summary window conventions:
+- tonic slope summary:
+  - compute on the Unity-defined stimulus interval only (`0–30 s`),
+- phasic spike count summary:
+  - count detected phasic peaks on the same Unity-defined stimulus interval
+    (`0–30 s`),
+- use padding for visualization / context, but keep the summary metrics tied to
+  the canonical stimulus window unless a different analysis window is
+  explicitly justified.
+
 ### 3) Keep one canonical trial clock
 
 Recommended rule:
@@ -177,6 +199,14 @@ Before inferential analysis, add collaborator-facing QC that can show:
 - ECG waveform + HR trend,
 - all centered on the same Unity-defined trial window.
 
+Recommended EDA QC additions:
+- full-session tonic conductance with colored Unity stimulus markers,
+- full-session phasic trace with the same marker scheme,
+- stimulus-aligned EDA trend panel for quick across-stimulus comparison,
+- per-stimulus side summary reporting:
+  - tonic slope (`µS/s`) over `0–30 s`,
+  - phasic spike count over `0–30 s`.
+
 ## Interpretation Boundary
 
 The quick figures built on 2026-03-20 were for communication and integration
@@ -186,7 +216,8 @@ They should not be treated as:
 - finalized physiological preprocessing,
 - clinical ECG analysis,
 - finalized EDA decomposition,
-- or validated cross-device synchronization.
+- validated cross-device synchronization,
+- or validated SCR event detection / scoring.
 
 ## Operational Summary
 

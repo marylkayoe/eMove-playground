@@ -26,6 +26,18 @@ This document tracks project state, implementation decisions, and validation run
   - example-session alignment was inferred from the Movesense UTC header timestamp converted to local session time,
   - therefore ECG timing should currently carry explicit provenance / confidence metadata in future MATLAB integration.
 
+### ECG Timing Ambiguity Clarified
+- Later inspection of the raw Movesense ECG CSV showed that it includes:
+  - a `# created ...` timestamp,
+  - elapsed time from `0.000 s`,
+  - but no absolute sample timestamps or trigger markers.
+- This means that recording on the same PC as Unity is not sufficient, by
+  itself, to prove exact cross-modality alignment from the CSV alone.
+- Current working interpretation:
+  - the hour-level conversion (`UTC` to local session time) is likely correct,
+  - but a smaller fixed offset may still be possible because `created` may
+    reflect file/session creation rather than guaranteed first-sample onset.
+
 ### Recommended Next MATLAB Work
 - Add auxiliary modality windows into the same trial-level structures already used for mocap segmentation.
 - Preserve:

@@ -103,6 +103,14 @@ Current practical interpretation:
 - the file name/header provides a UTC timestamp,
 - for the worked example the ECG file was aligned by converting that UTC start
   time to local session time.
+- the raw CSV later proved timing-ambiguous because it contains:
+  - an ambiguous `# created ...` timestamp,
+  - elapsed time from `0.000 s`,
+  - but no absolute timestamp per sample,
+  - no trigger/event markers,
+  - and no explicit field proving that `created` equals true acquisition onset.
+- therefore, even when Unity and ECG were recorded on the same PC, the CSV
+  alone does not prove zero-offset synchronization to the Unity clock.
 
 Worked-example alignment anchor:
 - ECG file header timestamp:
@@ -117,11 +125,19 @@ Worked-example alignment anchor:
 Important caution:
 - this ECG alignment should currently be treated as an explicit inference,
   not a proven hardware-level synchronization result.
+- later diagnostic checking suggested that a fixed second-scale offset remains
+  plausible even when the hour-level `UTC + 3 h` conversion is correct.
+- current best explanation is that the CSV `created` field may correspond to
+  file/session creation time rather than guaranteed first-sample acquisition
+  time.
 
 Immediate MATLAB implication:
 - ECG integration should preserve the alignment provenance flag
   (`direct timestamp` vs `inferred from UTC header`) so downstream analyses
   can separate higher-confidence vs inferred timing cases if needed.
+- the MATLAB pipeline should also preserve any future evidence about ECG start
+  semantics separately from the derived trial timing, so re-alignment remains
+  possible if better metadata become available.
 
 ## Existing MATLAB Entry Points Already Relevant
 

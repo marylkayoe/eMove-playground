@@ -59,6 +59,7 @@ Current analysis run scripts:
   - main file: `CODE/PLOTTING/gui/launchSubjectDensityBrowser.m`
   - current capabilities:
     - one-subject exploration of speed distributions by selected emotion set,
+    - pooled-across-subjects mode via `POOLED (all subjects)`,
     - one or more combined display groups:
       - `Head`
       - `Upper torso`
@@ -66,17 +67,23 @@ Current analysis run scripts:
       - `Arms`
       - `Wrists`
       - `Legs`
+    - `Probability density` or `CDF` display mode,
     - full-motion or micromovement-only display,
     - baseline-normalized or absolute display,
     - optional panel-level significance annotations:
       - `ranksum` for two selected emotions,
       - `Kruskal-Wallis` for three or more,
+    - optional per-panel `KS D` annotation for exactly two selected emotions in the density/CDF view,
+    - compact pairwise KS heatmap view from the same browser,
     - quantile-based x-range clipping for long-tailed distributions,
     - EPS export via `painters` rendering for Illustrator-friendly vector output.
   - current caveats:
     - the browser uses KDE (`ksdensity`) rather than histogram bins,
     - the selected x-limit quantile defines both the displayed range and the support of the plotted KDE after trimming values to that range,
-    - collapsed browser labels are display aliases only; the underlying saved result-cell group names remain canonical left/right labels.
+    - the browser currently uses the precomputed `speedArrayImmobile` field for micromovement mode,
+    - therefore the browser no longer exposes a live-editable micromovement threshold; analysis-side threshold recomputation remains future work,
+    - collapsed browser labels are display aliases only; the underlying saved result-cell group names remain canonical left/right labels,
+    - pooled browser plots are exploratory pooled-sample views and should not be confused with the subject-aggregated batch KS summaries used in the main reporting pipeline.
 
 ## Session Structure (Canonical)
 - One continuous mocap recording per subject session.

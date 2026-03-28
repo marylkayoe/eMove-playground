@@ -68,18 +68,32 @@ This document maps the current MATLAB codebase so new contributors can quickly f
   - Main files:
     - `launchCdfComparisonBrowser.m`
     - `launchSubjectDensityBrowser.m`
+    - `plotPooledSpeedDensityByEmotion.m`
+    - `plotPooledPairwiseStatsHeatmap.m`
+    - `plotSubjectPairwiseStatsHeatmap.m`
   - Current notes:
     - left/right limb groups are collapsed into combined browser options:
       - `Arms`
       - `Wrists`
       - `Legs`
     - supports EPS export (`painters` + `print -depsc`) for Illustrator workflows.
-    - subject density browser plots per-subject KDE speed distributions for one or more selected emotions and bodyparts.
+    - subject density browser plots per-subject or pooled KDE speed distributions for one or more selected emotions and bodyparts.
     - subject density browser supports:
       - baseline-normalized or absolute display,
       - full-motion or micromovement-only selection,
+      - probability-density or CDF mode,
       - optional panel-level significance annotations,
+      - optional two-emotion KS readout in density/CDF panels,
+      - compact pairwise KS heatmaps from the same selections,
       - quantile-based x-range clipping for long-tailed distributions.
+    - current caveat:
+      - subject density browser micromovement mode uses the precomputed `speedArrayImmobile` field;
+      - live threshold changes are intentionally not exposed until browser-side recomputation is implemented.
+    - current heatmap convention:
+      - every off-diagonal cell uses the same semantics,
+      - cell color = KS distance `D`,
+      - cell text = significance stars only,
+      - color scale is shared across bodypart panels within one figure.
 
 - `CODE/APPS/`
   - Deployment-aware app entrypoints for packaged or user-facing tools.
@@ -197,8 +211,10 @@ These files contain computation logic and should be treated as approval-required
   - note: browser labels can be combined aliases, while the underlying plotter aggregates the matching canonical result-cell groups.
 - Subject-level emotion distribution exploration:
   - `CODE/PLOTTING/gui/launchSubjectDensityBrowser.m`
-  - use this to inspect one subject at a time across selected emotions and bodyparts using KDE density plots.
+  - use this to inspect one subject at a time, or pooled across all subjects, across selected emotions and bodyparts using KDE density plots or CDFs.
   - note: x-limit quantile clipping is a display-and-support setting for the plotted KDE, intended to make long-tailed distributions readable without changing the saved analysis results.
+  - note: micromovement mode currently reflects the precomputed immobile arrays already stored in `resultsCell`, not a live threshold recomputation inside the browser.
+  - note: the paired heatmap view inside this browser is exploratory and is not identical to the subject-aggregated batch `computeKsDistancesFromResultsCell` / `plotKsHeatmap` reporting path.
 - Presentation-ready focused export:
   - `scripts/make_disgust_neutral_panels.m`
   - currently oriented toward producing Panel C / Panel D style CDF figures for collaborator or funder slides.

@@ -1,60 +1,23 @@
-function fig = plotSubjectSpeedDensityByEmotion(rc, codingTable, varargin)
-% plotSubjectSpeedDensityByEmotion
-% Plot subject-level speed probability densities across selected emotions.
+function fig = plotPooledSpeedDensityByEmotion(resultsCell, codingTable, varargin)
+% plotPooledSpeedDensityByEmotion
+% Plot pooled-across-subject speed distributions across emotions.
 %
 % Usage:
-%   fig = plotSubjectSpeedDensityByEmotion(rc, codingTable, ...
+%   fig = plotPooledSpeedDensityByEmotion(resultsCell, codingTable, ...
 %       'markerGroups', {'HEAD','UTORSO'}, ...
 %       'emotions', {'DISGUST','NEUTRAL','JOY'}, ...
 %       'useImmobile', true, ...
-%       'doBaselineNormalize', true)
+%       'doBaselineNormalize', true, ...
+%       'plotMode', 'Probability density')
 %
-% Inputs:
-%   rc
-%       One subject entry from resultsCell.
-%   codingTable
-%       Stimulus coding table with variables:
-%           videoID, emotion
-%
-% Name-value options:
-%   'markerGroups'
-%       Marker groups or browser aliases to plot.
-%   'markerGroupAliases'
-%       Struct or containers.Map that expands display aliases to canonical
-%       markerGroup names written in summaryTable.
-%   'emotions'
-%       Included emotions.
-%   'useImmobile'
-%       If true, use speedArrayImmobile. Otherwise use speedArray.
-%   'doBaselineNormalize'
-%       If true, divide samples by the subject baseline median for the same
-%       marker group and regime.
-%   'baselineEmotion'
-%       Emotion label used as baseline reference. Default: BASELINE.
-%   'immobilityThreshold'
-%       Threshold used only in titles/captions so the browser can label the
-%       currently precomputed immobile regime stored in `speedArrayImmobile`.
-%       Default: 35.
-%   'minBaselineSamples'
-%       Minimum baseline samples required for normalization. Default: 20.
-%   'outlierQuantile'
-%       Optional upper-tail trimming. Default: 0.99.
-%   'xLimitQuantile'
-%       Optional upper quantile used only for x-axis limits. Default: 0.95.
-%       Use 1.0 to keep the full data range.
-%   'tileCols'
-%       Number of subplot columns. Default: up to 2.
-%   'figureTitle'
-%       Optional figure title override.
-%   'plotMode'
-%       'Probability density' (default) or 'CDF'.
-%   'showStats'
-%       If true, annotate each panel with a nonparametric omnibus or
-%       pairwise significance test. Default: true.
-%   'showKs'
-%       If true and exactly two emotions are selected, also annotate the
-%       per-subject KS distance D using the same kstest2 metric that feeds
-%       the aggregate KS heatmaps. Default: true.
+% Notes:
+%   - This is an exploratory pooled-sample view for browsing and figure design.
+%   - It is not identical to the main subject-aggregated batch KS workflow.
+%   - Micromovement mode uses the precomputed `speedArrayImmobile` arrays
+%     already stored in `resultsCell`.
+%   - `plotMode` can be:
+%       'Probability density'
+%       'CDF'
 
 p = inputParser;
 addParameter(p, 'markerGroups', {}, @(x) iscell(x) || isstring(x));
@@ -91,13 +54,10 @@ showStats = p.Results.showStats;
 showKs = p.Results.showKs;
 
 if isempty(markerGroups)
-    error('plotSubjectSpeedDensityByEmotion:NoMarkerGroups', 'At least one marker group is required.');
+    error('plotPooledSpeedDensityByEmotion:NoMarkerGroups', 'At least one marker group is required.');
 end
 if isempty(emotionList)
-    error('plotSubjectSpeedDensityByEmotion:NoEmotions', 'At least one emotion is required.');
-end
-if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
-    error('plotSubjectSpeedDensityByEmotion:MissingSummary', 'Subject entry has no summaryTable.');
+    error('plotPooledSpeedDensityByEmotion:NoEmotions', 'At least one emotion is required.');
 end
 
 [vidToEmotion, ~] = localBuildVideoMap(codingTable);
@@ -117,9 +77,8 @@ end
 tileRows = ceil(numel(markerGroups) / tileCols);
 
 if isempty(strtrim(figureTitle))
-    subjectID = localSubjectID(rc);
     normLabel = ternary(doBaselineNormalize, 'baseline-normalized', 'absolute');
-    figureTitle = sprintf('%s | %s | %s', subjectID, strjoin(emotionList, ', '), [normLabel ' | ' regimeLabel]);
+    figureTitle = sprintf('POOLED | %s | %s | %s', strjoin(emotionList, ', '), normLabel, regimeLabel);
 end
 
 fig = figure('Color', 'w', 'Units', 'pixels', 'Position', [100 80 1450 920]);
@@ -134,9 +93,9 @@ for g = 1:numel(markerGroups)
 
     pooledVals = cell(numel(emotionList), 1);
     for e = 1:numel(emotionList)
-        pooledVals{e} = localApplyOutlierCut(localCollectRawSamplesForSubjectNormalized( ...
-            rc, vidToEmotion, mgSpec, emotionList{e}, speedField, doBaselineNormalize, ...
-            baselineEmotion, speedField, minBaselineSamples), outlierQuantile);
+        pooledVals{e} = localApplyOutlierCut(localCollectRawSamplesAcrossSubjectsNormalized( ...
+            resultsCell, vidToEmotion, mgSpec, emotionList{e}, speedField, ...
+            doBaselineNormalize, baselineEmotion, minBaselineSamples), outlierQuantile);
     end
 
     ax = nexttile(tl, g);
@@ -176,7 +135,7 @@ for g = 1:numel(markerGroups)
             'Color', [0.45 0.45 0.45]);
     end
     if showStats || showKs
-        localAnnotatePanelStats(ax, pooledVals, emotionList, showStats, showKs);
+        localAnnotatePanelStats(ax, pooledVals, showStats, showKs);
     end
 end
 
@@ -186,13 +145,29 @@ lgd = legend(legendHandles, emotionList, ...
     'Box', 'off');
 set(lgd, 'FontSize', 12);
 
-caption = sprintf('Subject-level %s %s. Thin vertical lines mark medians.', lower(plotMode), regimeLabel);
+caption = sprintf('Pooled-across-subject %s %s. Thin vertical lines mark pooled medians.', lower(plotMode), regimeLabel);
 annotation(fig, 'textbox', [0.12 0.02 0.76 0.04], ...
     'String', caption, ...
     'EdgeColor', 'none', ...
     'HorizontalAlignment', 'center', ...
     'FontSize', 11, ...
     'Color', [0.25 0.25 0.25]);
+end
+
+function vals = localCollectRawSamplesAcrossSubjectsNormalized(resultsCell, vidToEmotion, markerGroupSpec, emotion, speedField, doBaselineNormalize, baselineEmotion, minBaselineSamples)
+vals = [];
+for i = 1:numel(resultsCell)
+    rc = resultsCell{i};
+    if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
+        continue;
+    end
+    thisVals = localCollectRawSamplesForSubjectNormalized(rc, vidToEmotion, markerGroupSpec, emotion, speedField, doBaselineNormalize, baselineEmotion, speedField, minBaselineSamples);
+    if isempty(thisVals)
+        continue;
+    end
+    vals = [vals; thisVals(:)]; %#ok<AGROW>
+end
+vals = vals(~isnan(vals) & isfinite(vals));
 end
 
 function [vidToEmotion, emotions] = localBuildVideoMap(codingTable)
@@ -284,7 +259,7 @@ for j = 1:numel(rowIdx)
         continue;
     end
     thisVals = cellVal(:);
-    thisVals = thisVals(~isnan(thisVals));
+    thisVals = thisVals(~isnan(thisVals) & isfinite(thisVals));
     if isempty(thisVals)
         continue;
     end
@@ -317,26 +292,17 @@ idx = strcmp(string(st.markerGroup), string(markerGroup)) & strcmp(emoCol, basel
 if ~any(idx)
     return;
 end
-if strcmp(baselineFromField, 'speedArray') || strcmp(baselineFromField, 'speedArrayImmobile')
-    pooled = [];
-    rows = find(idx);
-    for r = rows(:)'
-        vals = st.(baselineFromField){r};
-        pooled = [pooled; vals(:)]; %#ok<AGROW>
-    end
-    pooled = pooled(~isnan(pooled));
-    if numel(pooled) < minBaselineSamples
-        return;
-    end
-    baseVal = median(pooled, 'omitnan');
-else
-    vals = st.(baselineFromField)(idx);
-    vals = vals(~isnan(vals));
-    if numel(vals) < max(1, minBaselineSamples)
-        return;
-    end
-    baseVal = median(vals, 'omitnan');
+pooled = [];
+rows = find(idx);
+for r = rows(:)'
+    vals = st.(baselineFromField){r};
+    pooled = [pooled; vals(:)]; %#ok<AGROW>
 end
+pooled = pooled(~isnan(pooled) & isfinite(pooled));
+if numel(pooled) < minBaselineSamples
+    return;
+end
+baseVal = median(pooled, 'omitnan');
 if ~(isfinite(baseVal) && baseVal > 0)
     baseVal = NaN;
 end
@@ -367,12 +333,6 @@ vals = vals(vals <= hi);
 end
 
 function [h, peakY] = localPlotCurveWithMedian(ax, vals, colorVal, xLims, plotMode)
-if nargin < 3 || isempty(colorVal)
-    colorVal = [0 0 0];
-end
-if nargin < 4 || isempty(xLims)
-    xLims = [];
-end
 vals = vals(:);
 vals = vals(~isnan(vals) & isfinite(vals));
 if numel(vals) < 2
@@ -380,27 +340,22 @@ if numel(vals) < 2
     peakY = 0;
     return;
 end
-if isempty(xLims)
-    [f, x] = ksdensity(vals, 'Function', 'pdf');
-    medVal = median(vals, 'omitnan');
+vals = vals(vals >= xLims(1) & vals <= xLims(2));
+if numel(vals) < 2
+    h = plot(ax, nan, nan, 'Color', colorVal, 'LineWidth', 2.2);
+    peakY = 0;
+    return;
+end
+medVal = median(vals, 'omitnan');
+xGrid = linspace(xLims(1), xLims(2), 256);
+if strcmpi(plotMode, 'CDF')
+    [f, x] = ksdensity(vals, xGrid, 'Function', 'cdf');
 else
-    vals = vals(vals >= xLims(1) & vals <= xLims(2));
-    if numel(vals) < 2
-        h = plot(ax, nan, nan, 'Color', colorVal, 'LineWidth', 2.2);
-        peakY = 0;
-        return;
-    end
-    xGrid = linspace(xLims(1), xLims(2), 256);
-    if strcmpi(plotMode, 'CDF')
-        [f, x] = ksdensity(vals, xGrid, 'Function', 'cdf');
-    else
-        [f, x] = ksdensity(vals, xGrid, 'Function', 'pdf');
-    end
-    medVal = median(vals, 'omitnan');
+    [f, x] = ksdensity(vals, xGrid, 'Function', 'pdf');
 end
 h = plot(ax, x, f, 'Color', colorVal, 'LineWidth', 2.2);
 peakY = max(f);
-if isempty(xLims) || (medVal >= xLims(1) && medVal <= xLims(2))
+if medVal >= xLims(1) && medVal <= xLims(2)
     plot(ax, [medVal medVal], [0 peakY], ':', 'Color', colorVal, 'LineWidth', 2.0);
 end
 end
@@ -412,16 +367,15 @@ if isempty(vals)
     lims = [0 1];
     return;
 end
-if nargin < 2 || isempty(xLimitQuantile)
-    xLimitQuantile = 1.0;
-end
-vmin = min(vals);
 if xLimitQuantile >= 1
     vmax = max(vals);
+    vmin = min(vals);
 else
     vmax = quantile(vals, xLimitQuantile);
     valsInRange = vals(vals <= vmax);
-    if ~isempty(valsInRange)
+    if isempty(valsInRange)
+        vmin = min(vals);
+    else
         vmin = min(valsInRange);
     end
 end
@@ -469,25 +423,7 @@ switch upper(s)
 end
 end
 
-function subjectID = localSubjectID(rc)
-subjectID = '';
-if isfield(rc, 'subjectID') && ~isempty(rc.subjectID)
-    subjectID = char(string(rc.subjectID));
-end
-if isempty(subjectID)
-    subjectID = 'unknown_subject';
-end
-end
-
-function out = ternary(cond, a, b)
-if cond
-    out = a;
-else
-    out = b;
-end
-end
-
-function localAnnotatePanelStats(ax, pooledVals, emotionList, showStats, showKs)
+function localAnnotatePanelStats(ax, pooledVals, showStats, showKs)
 vals = [];
 grp = [];
 for i = 1:numel(pooledVals)
@@ -503,21 +439,13 @@ end
 if isempty(vals) || numel(unique(grp)) < 2
     return;
 end
-
 txtLines = {};
 if numel(unique(grp)) == 2
-    groupA = pooledVals{1};
-    groupB = pooledVals{2};
-    groupA = groupA(:); groupA = groupA(~isnan(groupA) & isfinite(groupA));
-    groupB = groupB(:); groupB = groupB(~isnan(groupB) & isfinite(groupB));
-    if isempty(groupA) || isempty(groupB)
-        return;
-    end
+    groupA = pooledVals{1}; groupA = groupA(:); groupA = groupA(~isnan(groupA) & isfinite(groupA));
+    groupB = pooledVals{2}; groupB = groupB(:); groupB = groupB(~isnan(groupB) & isfinite(groupB));
     if showStats
         pVal = ranksum(groupA, groupB);
-        testLabel = 'RS';
-        stars = localPStars(pVal);
-        txtLines{end+1} = sprintf('%s %s p=%s', stars, testLabel, localFormatPValue(pVal)); %#ok<AGROW>
+        txtLines{end+1} = sprintf('%s RS p=%s', localPStars(pVal), localFormatPValue(pVal)); %#ok<AGROW>
     end
     if showKs
         [~, ~, ksD] = kstest2(groupA, groupB);
@@ -526,27 +454,26 @@ if numel(unique(grp)) == 2
 else
     if showStats
         pVal = kruskalwallis(vals, grp, 'off');
-        testLabel = 'KW';
-        stars = localPStars(pVal);
-        txtLines{end+1} = sprintf('%s %s p=%s', stars, testLabel, localFormatPValue(pVal)); %#ok<AGROW>
+        txtLines{end+1} = sprintf('%s KW p=%s', localPStars(pVal), localFormatPValue(pVal)); %#ok<AGROW>
     end
 end
 if isempty(txtLines)
     return;
 end
-txt = strjoin(txtLines, '\n');
-text(ax, 0.02, 0.98, txt, ...
+text(ax, 0.02, 0.98, strjoin(txtLines, '\n'), ...
     'Units', 'normalized', ...
     'HorizontalAlignment', 'left', ...
     'VerticalAlignment', 'top', ...
-    'FontSize', 11, ...
+    'FontSize', 10, ...
     'FontWeight', 'bold', ...
-    'Color', [0.15 0.15 0.15], ...
+    'Color', [0.1 0.1 0.1], ...
     'BackgroundColor', 'none');
 end
 
 function s = localPStars(pVal)
-if pVal < 0.001
+if ~isfinite(pVal)
+    s = 'n/a';
+elseif pVal < 0.001
     s = '***';
 elseif pVal < 0.01
     s = '**';
@@ -557,12 +484,18 @@ else
 end
 end
 
-function s = localFormatPValue(pVal)
+function txt = localFormatPValue(pVal)
 if pVal < 1e-3
-    s = sprintf('%.1e', pVal);
-elseif pVal < 0.01
-    s = sprintf('%.3f', pVal);
+    txt = sprintf('%.1e', pVal);
 else
-    s = sprintf('%.2f', pVal);
+    txt = sprintf('%.3f', pVal);
+end
+end
+
+function out = ternary(cond, a, b)
+if cond
+    out = a;
+else
+    out = b;
 end
 end

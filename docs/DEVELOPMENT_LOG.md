@@ -132,9 +132,46 @@ This document tracks project state, implementation decisions, and validation run
   - `Legs`
 - Uses KDE (`ksdensity`) rather than histogram bins.
 - Supports:
+  - pooled mode (`POOLED (all subjects)`),
   - optional `ranksum` annotation when exactly two emotions are selected,
   - optional `Kruskal-Wallis` annotation when three or more emotions are selected,
+  - optional `KS D` annotation when exactly two emotions are selected,
+  - compact pairwise KS heatmaps from the same browser selections,
+  - switchable `Probability density` and `CDF` display modes,
   - quantile-based x-range clipping to keep long-tailed speed distributions readable.
+- Current micromovement caveat:
+  - the browser uses the precomputed `speedArrayImmobile` arrays already stored in `resultsCell`,
+  - so the micromovement threshold shown in titles is descriptive of the precomputed regime,
+  - not a live browser-side threshold recomputation.
+- UI change made after this caveat was confirmed:
+  - the editable micromovement-threshold control was removed from the subject density browser,
+  - to avoid implying that threshold changes are already wired into the plotted data.
+
+### Subject Density Browser Heatmap Semantics
+- Added:
+  - `CODE/PLOTTING/plotSubjectPairwiseStatsHeatmap.m`
+  - `CODE/PLOTTING/plotPooledPairwiseStatsHeatmap.m`
+  - `CODE/PLOTTING/plotPooledSpeedDensityByEmotion.m`
+- Final heatmap design direction after several iterations:
+  - every off-diagonal cell should mean the same thing,
+  - color encodes `KS D`,
+  - text shows significance stars only,
+  - the KS color scale is shared across bodypart panels within one figure.
+- Rejected intermediate design:
+  - split upper/lower-triangle semantics,
+  - because it was harder to decode than it was worth in poster settings.
+
+### Interpretation Caveat Recorded
+- The pooled mode inside the subject density browser is an exploratory pooled-sample browser view.
+- It should not be treated as interchangeable with the main batch KS pipeline:
+  - `computeKsDistancesFromResultsCell`
+  - `plotKsHeatmap`
+- Reason:
+  - the browser pools samples directly from the selected `resultsCell` arrays,
+  - while the reporting pipeline computes per-subject pairwise values first and then aggregates across subjects.
+- Therefore:
+  - pooled browser heatmaps are useful for exploration and figure scouting,
+  - but not a substitute for the subject-aggregated reporting figures.
 
 ### Subject Density Browser Fixes
 - Fixed duplicate browser-window behavior:
@@ -160,6 +197,9 @@ This document tracks project state, implementation decisions, and validation run
   - `micromovement only = true`,
   - `baseline-normalized = true`
   - now runs without the prior `ksdensity` support-range error.
+- Browser logic review:
+  - confirmed that subject-density micromovement mode is currently reading the precomputed `speedArrayImmobile` field,
+  - therefore a future browser-side enhancement is needed if live threshold changes are to be supported honestly.
 
 ## 2026-03-14
 

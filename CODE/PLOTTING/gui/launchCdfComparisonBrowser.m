@@ -14,6 +14,14 @@ function H = launchCdfComparisonBrowser(varargin)
 %
 % It then calls plotSpeedCDFByStimGroupFromResultsCell using the chosen
 % settings and opens the resulting figure.
+%
+% Browser-specific notes:
+%   - left/right groups are collapsed into combined display aliases:
+%       Arms   = UPPER_LIMB_L + UPPER_LIMB_R
+%       Wrists = WRIST_L + WRIST_R
+%       Legs   = LOWER_LIMB_L + LOWER_LIMB_R
+%   - the browser can export the current plot as Illustrator-friendly EPS
+%     using painters rendering (`print -depsc`).
 
     p = inputParser;
     addParameter(p, 'repoRoot', '', @(x) ischar(x) || isstring(x));
@@ -62,7 +70,7 @@ function H = launchCdfComparisonBrowser(varargin)
     end
     resultsCell = Sload.resultsCell;
     codingTable = localLoadStimCodingTable(stimCsv);
-    markerGroups = localCollectMarkerGroups(resultsCell);
+    [markerGroups, markerGroupAliasMap] = localCollectMarkerGroups(resultsCell);
     emotionList = localCollectEmotionList(codingTable);
 
     state = struct();
@@ -71,6 +79,7 @@ function H = launchCdfComparisonBrowser(varargin)
     state.resultsCellPath = resultsCellPath;
     state.stimCsv = stimCsv;
     state.markerGroups = markerGroups;
+    state.markerGroupAliasMap = markerGroupAliasMap;
     state.emotionList = emotionList;
     state.groupCheckboxes = gobjects(0);
     state.emotionCheckboxes = gobjects(0);
@@ -183,6 +192,10 @@ function H = launchCdfComparisonBrowser(varargin)
         'String', 'Close Plot', ...
         'Position', [200 244 170 44], ...
         'Callback', @onClosePlot);
+    hExportEps = uicontrol(f, 'Style', 'pushbutton', ...
+        'String', 'Export EPS', ...
+        'Position', [380 244 170 44], ...
+        'Callback', @onExportEps);
 
     hStatus = uicontrol(f, 'Style', 'text', ...
         'String', 'Ready', ...
@@ -214,6 +227,7 @@ function H = launchCdfComparisonBrowser(varargin)
     S.hImmThr = hImmThr;
     S.hRefresh = hRefresh;
     S.hClosePlot = hClosePlot;
+    S.hExportEps = hExportEps;
     S.hStatus = hStatus;
     S.hInfo = hInfo;
     guidata(f, S);
@@ -325,6 +339,7 @@ function H = launchCdfComparisonBrowser(varargin)
 
             plotArgs = { ...
                 'markerGroups', settings.markerGroups, ...
+                'markerGroupAliases', S.state.markerGroupAliasMap, ...
                 'emotionInclude', settings.emotions, ...
                 'emotionExclude', {'BASELINE','0','X','AMUSEMENT',''}, ...
                 'plotMode', settings.plotMode, ...
@@ -372,6 +387,70 @@ function H = launchCdfComparisonBrowser(varargin)
             S.state.currentPlotFigure = [];
         end
         guidata(f, S);
+    end
+
+    function onExportEps(~, ~)
+        S = guidata(f);
+        if isempty(S.state.currentPlotFigure) || ~ishandle(S.state.currentPlotFigure)
+            set(S.hStatus, 'String', 'No plot is open to export.', ...
+                'ForegroundColor', [0.7 0.1 0.1]);
+            guidata(f, S);
+            return;
+        end
+
+        try
+            settings = localReadControls(S);
+            groupLabel = strjoin(settings.markerGroups, '_');
+            if isempty(groupLabel)
+                groupLabel = 'no_groups';
+            end
+            emotionLabel = strjoin(settings.emotions, '_');
+            if isempty(emotionLabel)
+                emotionLabel = 'no_emotions';
+            end
+            regimeLabel = ternary(settings.useImmobile, 'micro', 'full');
+            normLabel = ternary(settings.doBaselineNormalize, 'baseline_normalized', 'absolute');
+            regimeNormLabel = sprintf('%s_%s', regimeLabel, normLabel);
+            defaultName = sprintf('cdf_%s_%s_%s_%s.eps', ...
+                emotionLabel, groupLabel, settings.plotMode, regimeNormLabel);
+            defaultName = regexprep(defaultName, '[^\w.-]+', '_');
+            [fileName, filePath] = uiputfile('*.eps', 'Export CDF plot as EPS', defaultName);
+            if isequal(fileName, 0) || isequal(filePath, 0)
+                set(S.hStatus, 'String', 'EPS export canceled.', ...
+                    'ForegroundColor', [0.2 0.2 0.2]);
+                guidata(f, S);
+                return;
+            end
+
+            fig = S.state.currentPlotFigure;
+            oldRendererMode = get(fig, 'RendererMode');
+            oldRenderer = get(fig, 'Renderer');
+            set(fig, 'Renderer', 'painters');
+            drawnow;
+            saveFileName = fullfile(filePath, fileName);
+            print(fig, '-depsc', saveFileName);
+            if strcmpi(oldRendererMode, 'manual')
+                set(fig, 'Renderer', oldRenderer);
+            else
+                set(fig, 'RendererMode', oldRendererMode);
+            end
+
+            set(S.hStatus, 'String', sprintf('Exported EPS: %s', saveFileName), ...
+                'ForegroundColor', [0.2 0.2 0.2]);
+            guidata(f, S);
+        catch ME
+            set(S.hStatus, 'String', sprintf('EPS export failed: %s', ME.message), ...
+                'ForegroundColor', [0.7 0.1 0.1]);
+            guidata(f, S);
+        end
+    end
+end
+
+function out = ternary(cond, a, b)
+    if cond
+        out = a;
+    else
+        out = b;
     end
 end
 
@@ -484,7 +563,23 @@ end
 function labels = localPrettyMarkerGroupLabels(rawLabels)
     labels = cell(size(rawLabels));
     for i = 1:numel(rawLabels)
-        labels{i} = strrep(char(string(rawLabels{i})), '_', '-');
+        raw = char(string(rawLabels{i}));
+        switch upper(raw)
+            case 'HEAD'
+                labels{i} = 'Head';
+            case 'UTORSO'
+                labels{i} = 'Upper torso';
+            case 'LTORSO'
+                labels{i} = 'Lower torso';
+            case 'ARMS'
+                labels{i} = 'Arms';
+            case 'WRISTS'
+                labels{i} = 'Wrists';
+            case 'LEGS'
+                labels{i} = 'Legs';
+            otherwise
+                labels{i} = strrep(raw, '_', '-');
+        end
     end
 end
 
@@ -501,7 +596,7 @@ function label = localPlotModeLabel(plotMode)
     end
 end
 
-function markerGroups = localCollectMarkerGroups(resultsCell)
+function [markerGroups, aliasMap] = localCollectMarkerGroups(resultsCell)
     markerGroups = {};
     for s = 1:numel(resultsCell)
         rc = resultsCell{s};
@@ -514,6 +609,23 @@ function markerGroups = localCollectMarkerGroups(resultsCell)
         end
     end
     markerGroups = unique(markerGroups, 'stable');
+
+    aliasMap = struct();
+    aliasMap.HEAD = {'HEAD'};
+    aliasMap.UTORSO = {'UTORSO'};
+    aliasMap.LTORSO = {'LTORSO'};
+    aliasMap.ARMS = {'UPPER_LIMB_L','UPPER_LIMB_R'};
+    aliasMap.WRISTS = {'WRIST_L','WRIST_R'};
+    aliasMap.LEGS = {'LOWER_LIMB_L','LOWER_LIMB_R'};
+
+    collapsedGroups = {};
+    if any(strcmp(markerGroups, 'HEAD')), collapsedGroups{end+1} = 'HEAD'; end %#ok<AGROW>
+    if any(strcmp(markerGroups, 'UTORSO')), collapsedGroups{end+1} = 'UTORSO'; end %#ok<AGROW>
+    if any(strcmp(markerGroups, 'LTORSO')), collapsedGroups{end+1} = 'LTORSO'; end %#ok<AGROW>
+    if any(ismember(markerGroups, {'UPPER_LIMB_L','UPPER_LIMB_R'})), collapsedGroups{end+1} = 'ARMS'; end %#ok<AGROW>
+    if any(ismember(markerGroups, {'WRIST_L','WRIST_R'})), collapsedGroups{end+1} = 'WRISTS'; end %#ok<AGROW>
+    if any(ismember(markerGroups, {'LOWER_LIMB_L','LOWER_LIMB_R'})), collapsedGroups{end+1} = 'LEGS'; end %#ok<AGROW>
+    markerGroups = collapsedGroups;
 end
 
 function emotionList = localCollectEmotionList(codingTable)

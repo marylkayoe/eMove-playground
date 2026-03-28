@@ -8,9 +8,18 @@ function plotSpeedCDFByStimGroupFromResultsCell(resultsCell, codingTable, vararg
 %   'perSubjectRaw'   : per-subject ECDFs (thin) + median ECDF across subjects (thick)
 %
 % Baseline normalization (fold baseline) is supported for ALL plot modes.
+%
+% Optional alias support:
+%   Pass 'markerGroupAliases' as a struct or containers.Map to let one
+%   plotted group expand to multiple canonical result-cell marker groups.
+%   Example:
+%       ARMS   -> {'UPPER_LIMB_L','UPPER_LIMB_R'}
+%       WRISTS -> {'WRIST_L','WRIST_R'}
+%       LEGS   -> {'LOWER_LIMB_L','LOWER_LIMB_R'}
 
 p = inputParser;
 addParameter(p, 'markerGroups', {}, @(x) iscell(x) || isstring(x));
+addParameter(p, 'markerGroupAliases', struct(), @(x) isstruct(x) || isa(x, 'containers.Map'));
 addParameter(p, 'emotionInclude', {}, @(x) iscell(x) || isstring(x));
 addParameter(p, 'emotionExclude', {'0','X','AMUSEMENT',''}, @(x) iscell(x) || isstring(x));
 addParameter(p, 'plotMode', 'perVideoMedian', @(x) ischar(x) || isstring(x));
@@ -32,6 +41,7 @@ addParameter(p, 'minBaselineSamples', 200, @(x) isscalar(x) && x>=0);
 parse(p, varargin{:});
 
 markerGroups = cellstr(string(p.Results.markerGroups));
+markerGroupAliases = p.Results.markerGroupAliases;
 emotionInclude = cellstr(string(p.Results.emotionInclude));
 emotionExclude = cellstr(string(p.Results.emotionExclude));
 plotMode = char(string(p.Results.plotMode));
@@ -110,6 +120,7 @@ legendLabelsMaster = {};
     for g = 1:nGroups
         mg = markerGroups{g};
         mgLabel = localPrettyMarkerGroupLabel(mg);
+        mgSpec = localResolveMarkerGroupSpec(mg, markerGroupAliases);
         nexttile; hold on;
         axHandles(g) = gca;
 
@@ -119,7 +130,7 @@ legendLabelsMaster = {};
             for e = 1:numel(emotionList)
                 emo = emotionList{e};
                 pooled{e} = localCollectSummaryValuesNormalized( ...
-                    resultsCell, vidToEmotion, mg, emo, summaryField, ...
+                    resultsCell, vidToEmotion, mgSpec, emo, summaryField, ...
                     doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples);
 
                 pooled{e} = localApplyOutlierCut(pooled{e}, outlierQuantile);
@@ -150,7 +161,7 @@ legendLabelsMaster = {};
                 for s = 1:numel(resultsCell)
                     rc = resultsCell{s};
                     vals = localCollectRawSamplesForSubjectNormalized( ...
-                        rc, vidToEmotion, mg, emo, immobilityField, ...
+                        rc, vidToEmotion, mgSpec, emo, immobilityField, ...
                         doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples);
 
                     vals = localApplyOutlierCut(vals, outlierQuantile);
@@ -188,7 +199,7 @@ legendLabelsMaster = {};
                 for s = 1:numel(subjIDs)
                     rc = resultsCell{s};
                     vals = localCollectRawSamplesForSubjectNormalized( ...
-                        rc, vidToEmotion, mg, emo, immobilityField, ...
+                        rc, vidToEmotion, mgSpec, emo, immobilityField, ...
                         doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples);
 
                     vals = vals(~isnan(vals));
@@ -235,7 +246,22 @@ end
 function s = localPrettyMarkerGroupLabel(raw)
 % Render marker-group labels for plots without underscores.
     s = char(string(raw));
-    s = strrep(s, '_', '-');
+    switch upper(s)
+        case 'HEAD'
+            s = 'Head';
+        case 'UTORSO'
+            s = 'Upper torso';
+        case 'LTORSO'
+            s = 'Lower torso';
+        case 'ARMS'
+            s = 'Arms';
+        case 'WRISTS'
+            s = 'Wrists';
+        case 'LEGS'
+            s = 'Legs';
+        otherwise
+            s = strrep(s, '_', '-');
+    end
 end
 
 %% ---------- helpers ----------
@@ -279,6 +305,30 @@ for r = 1:height(st)
         emoCol{r} = '';
     end
 end
+end
+
+function markerGroupSpec = localResolveMarkerGroupSpec(markerGroupKey, markerGroupAliases)
+    key = char(string(markerGroupKey));
+    if isa(markerGroupAliases, 'containers.Map')
+        if isKey(markerGroupAliases, key)
+            markerGroupSpec = cellstr(string(markerGroupAliases(key)));
+        else
+            markerGroupSpec = {key};
+        end
+        return;
+    end
+
+    if isstruct(markerGroupAliases) && isfield(markerGroupAliases, key)
+        markerGroupSpec = cellstr(string(markerGroupAliases.(key)));
+    else
+        markerGroupSpec = {key};
+    end
+end
+
+function mask = localMarkerGroupMask(st, markerGroupSpec)
+    mgCol = string(st.markerGroup);
+    spec = cellstr(string(markerGroupSpec));
+    mask = ismember(mgCol, string(spec));
 end
 
 function [hOut, labelsOut] = localPlotPooledEcdfs(pooledVals, emotionList, emotionColorMap)
@@ -512,7 +562,7 @@ if isempty(emoCol)
     return;
 end
 
-idx = strcmp(st.markerGroup, markerGroup) & strcmp(emoCol, baselineEmotion);
+idx = strcmp(string(st.markerGroup), string(markerGroup)) & strcmp(emoCol, baselineEmotion);
 if ~any(idx)
     return;
 end
@@ -548,7 +598,7 @@ if ~(isfinite(baseVal) && baseVal > 0)
 end
 end
 
-function vals = localCollectSummaryValuesNormalized(resultsCell, vidToEmotion, markerGroup, emotion, summaryField, doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples)
+function vals = localCollectSummaryValuesNormalized(resultsCell, vidToEmotion, markerGroupSpec, emotion, summaryField, doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples)
 vals = [];
 for s = 1:numel(resultsCell)
     rc = resultsCell{s};
@@ -560,29 +610,51 @@ for s = 1:numel(resultsCell)
         continue;
     end
 
-    baseVal = 1;
-    if doBaselineNormalize
-        baseVal = localBaselineScalarForSubject(rc, vidToEmotion, markerGroup, baselineEmotion, baselineFromField, minBaselineSamples);
-        if ~isfinite(baseVal)
-            continue;
-        end
-    end
-
     emoCol = localEmotionColumn(st, vidToEmotion);
     if isempty(emoCol)
         continue;
     end
 
-    idx = strcmp(st.markerGroup, markerGroup) & strcmp(emoCol, emotion);
-    v = st.(summaryField)(idx);
-    v = v(~isnan(v));
-    if isempty(v), continue; end
+    idx = localMarkerGroupMask(st, markerGroupSpec) & strcmp(emoCol, emotion);
+    if ~any(idx), continue; end
 
-    vals = [vals; (v(:) ./ baseVal)]; %#ok<AGROW>
+    rowIdx = find(idx);
+            rowVideoIDs = string(st.videoID(rowIdx));
+            uniqueVideoIDs = unique(rowVideoIDs, 'stable');
+
+    for vIdx = 1:numel(uniqueVideoIDs)
+        vid = uniqueVideoIDs(vIdx);
+        thisRows = rowIdx(rowVideoIDs == vid);
+        rowVals = nan(numel(thisRows), 1);
+        keepCount = 0;
+        for j = 1:numel(thisRows)
+            r = thisRows(j);
+            thisVal = st.(summaryField)(r);
+            if ~isfinite(thisVal)
+                continue;
+            end
+            if doBaselineNormalize
+                thisGroup = char(string(st.markerGroup{r}));
+                baseVal = localBaselineScalarForSubject(rc, vidToEmotion, thisGroup, baselineEmotion, baselineFromField, minBaselineSamples);
+                if ~isfinite(baseVal)
+                    continue;
+                end
+                thisVal = thisVal ./ baseVal;
+            end
+            keepCount = keepCount + 1;
+            rowVals(keepCount) = thisVal;
+        end
+        rowVals = rowVals(1:keepCount);
+        rowVals = rowVals(~isnan(rowVals));
+        if isempty(rowVals)
+            continue;
+        end
+        vals = [vals; mean(rowVals, 'omitnan')]; %#ok<AGROW>
+    end
 end
 end
 
-function vals = localCollectRawSamplesForSubject(rc, vidToEmotion, markerGroup, emotion, speedField)
+function vals = localCollectRawSamplesForSubject(rc, vidToEmotion, markerGroupSpec, emotion, speedField)
 vals = [];
 if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
     return;
@@ -598,7 +670,7 @@ if isempty(emoCol)
     return;
 end
 
-idx = strcmp(st.markerGroup, markerGroup) & strcmp(emoCol, emotion);
+idx = localMarkerGroupMask(st, markerGroupSpec) & strcmp(emoCol, emotion);
 if ~any(idx)
     return;
 end
@@ -612,18 +684,49 @@ end
 vals = vals(~isnan(vals));
 end
 
-function vals = localCollectRawSamplesForSubjectNormalized(rc, vidToEmotion, markerGroup, emotion, speedField, doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples)
-vals = localCollectRawSamplesForSubject(rc, vidToEmotion, markerGroup, emotion, speedField);
+function vals = localCollectRawSamplesForSubjectNormalized(rc, vidToEmotion, markerGroupSpec, emotion, speedField, doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples)
+vals = [];
+if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
+    return;
+end
+st = rc.summaryTable;
 
-if ~doBaselineNormalize
+if ~ismember(speedField, st.Properties.VariableNames)
     return;
 end
 
-baseVal = localBaselineScalarForSubject(rc, vidToEmotion, markerGroup, baselineEmotion, baselineFromField, minBaselineSamples);
-if ~isfinite(baseVal)
-    vals = [];
+emoCol = localEmotionColumn(st, vidToEmotion);
+if isempty(emoCol)
     return;
 end
 
-vals = vals ./ baseVal;
+idx = localMarkerGroupMask(st, markerGroupSpec) & strcmp(emoCol, emotion);
+if ~any(idx)
+    return;
+end
+
+rowIdx = find(idx);
+for j = 1:numel(rowIdx)
+    r = rowIdx(j);
+    cellVal = st.(speedField){r};
+    if isempty(cellVal)
+        continue;
+    end
+    thisVals = cellVal(:);
+    thisVals = thisVals(~isnan(thisVals));
+    if isempty(thisVals)
+        continue;
+    end
+
+    if doBaselineNormalize
+        thisGroup = char(string(st.markerGroup{r}));
+        baseVal = localBaselineScalarForSubject(rc, vidToEmotion, thisGroup, baselineEmotion, baselineFromField, minBaselineSamples);
+        if ~isfinite(baseVal)
+            continue;
+        end
+        thisVals = thisVals ./ baseVal;
+    end
+
+    vals = [vals; thisVals]; %#ok<AGROW>
+end
 end

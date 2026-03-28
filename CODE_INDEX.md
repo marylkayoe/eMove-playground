@@ -60,11 +60,19 @@ This document maps the current MATLAB codebase so new contributors can quickly f
   - Interactive exploration tools.
   - Main files:
     - `launchMicromovementExampleBrowser.m`
+  - Current notes:
+    - supports EPS export (`painters` + `print -depsc`) for Illustrator workflows.
 
 - `CODE/PLOTTING/gui/`
   - Interactive non-poster plotting browsers.
   - Main files:
     - `launchCdfComparisonBrowser.m`
+  - Current notes:
+    - left/right limb groups are collapsed into combined browser options:
+      - `Arms`
+      - `Wrists`
+      - `Legs`
+    - supports EPS export (`painters` + `print -depsc`) for Illustrator workflows.
 
 - `CODE/APPS/`
   - Deployment-aware app entrypoints for packaged or user-facing tools.
@@ -178,6 +186,7 @@ These files contain computation logic and should be treated as approval-required
 - Group-level emotion comparison:
   - `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
   - use this to compare one or more emotions across selected bodyparts and plot modes.
+  - note: browser labels can be combined aliases, while the underlying plotter aggregates the matching canonical result-cell groups.
 - Presentation-ready focused export:
   - `scripts/make_disgust_neutral_panels.m`
   - currently oriented toward producing Panel C / Panel D style CDF figures for collaborator or funder slides.

@@ -38,16 +38,22 @@ Current analysis run scripts:
     - preserved browsing context across subject switches,
     - configurable pre/post stimulus context,
     - integrated speed panel and immobility shading,
-    - right-side stick-figure overview.
+    - right-side stick-figure overview,
+    - EPS export via `painters` rendering for Illustrator-friendly vector output.
 - Group-level CDF comparison browser:
   - launcher: `scripts/launch_cdf_comparison_browser.m`
   - main file: `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
   - current capabilities:
     - multi-bodypart selection,
+    - left/right collapsing into combined display groups:
+      - `Arms`
+      - `Wrists`
+      - `Legs`
     - multi-emotion overlay in one plot,
     - `perVideoMedian`, `pooledRaw`, or `perSubjectRaw` modes,
     - full-speed vs micromovement comparison,
-    - baseline-normalized vs absolute display.
+    - baseline-normalized vs absolute display,
+    - EPS export via `painters` rendering for Illustrator-friendly vector output.
 
 ## Session Structure (Canonical)
 - One continuous mocap recording per subject session.
@@ -94,4 +100,4 @@ Detailed conventions are in [CONTRIBUTING_READABILITY.md](CONTRIBUTING_READABILI
 
 ---
 
-*Last updated: March 20, 2026*
+*Last updated: March 28, 2026*

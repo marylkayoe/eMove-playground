@@ -73,6 +73,43 @@ This document tracks project state, implementation decisions, and validation run
 - A non-y-aligned tonic trace view was tested and rejected as not useful for
   interpretation.
 
+## 2026-03-28
+
+### Browser Export And Group-Alias Updates
+- Updated `CODE/PLOTTING/poster/gui/launchMicromovementExampleBrowser.m`:
+  - added `Export EPS` button,
+  - uses `Renderer='painters'` and `print -depsc`,
+  - intended for Illustrator-friendly vector export of example-browser figures.
+- Updated `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`:
+  - added `Export EPS` button with the same `painters` export path,
+  - added combined bodypart choices in the UI:
+    - `Arms`
+    - `Wrists`
+    - `Legs`
+- Updated `CODE/PLOTTING/plotSpeedCDFByStimGroupFromResultsCell.m`:
+  - now supports browser-side marker-group aliases that expand to multiple canonical groups,
+  - left/right pooled CDFs are aggregated before plotting rather than merely relabeled.
+
+### Validation Runs
+- MATLAB smoke test: micromovement example browser launches cleanly after EPS export addition.
+- MATLAB smoke test: CDF comparison browser launches cleanly after:
+  - EPS export addition,
+  - combined-group alias handling,
+  - helper-function visibility bug fix in `plotSpeedCDFByStimGroupFromResultsCell.m`.
+
+### Caveat
+- Combined bodypart aliases affect browser presentation and aggregation only.
+- They do not rename the canonical result-cell `markerGroup` labels written by the analysis pipeline.
+- Therefore:
+  - browser panels can show `Arms`, `Wrists`, `Legs`,
+  - while legacy scripts and saved tables may still use:
+    - `UPPER_LIMB_L`
+    - `UPPER_LIMB_R`
+    - `WRIST_L`
+    - `WRIST_R`
+    - `LOWER_LIMB_L`
+    - `LOWER_LIMB_R`
+
 ## 2026-03-14
 
 ### Regime-Distinctness Analysis Passes

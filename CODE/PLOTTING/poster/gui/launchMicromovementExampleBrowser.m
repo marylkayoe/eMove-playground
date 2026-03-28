@@ -12,6 +12,10 @@ function H = launchMicromovementExampleBrowser(varargin)
 %   - bottom: instantaneous speed traces
 % with optional pre/post stimulus context and explicit stimulus boundary lines.
 %
+% Export note:
+%   - the browser can export the current plot as EPS using painters
+%     rendering (`print -depsc`) for Illustrator-friendly vector output.
+%
 % Notes for standalone packaging:
 %   - Pass explicit matRoot / groupCsv / stimCsv paths from a deployment-aware
 %     launcher instead of relying on repository-relative defaults.
@@ -200,6 +204,10 @@ function H = launchMicromovementExampleBrowser(varargin)
         'String', 'Close Plot', ...
         'Position', [190 296 160 42], ...
         'Callback', @onClosePlot);
+    hExportEps = uicontrol(f, 'Style', 'pushbutton', ...
+        'String', 'Export EPS', ...
+        'Position', [360 296 160 42], ...
+        'Callback', @onExportEps);
 
     hStatus = uicontrol(f, 'Style', 'text', ...
         'String', 'Ready', ...
@@ -232,6 +240,7 @@ function H = launchMicromovementExampleBrowser(varargin)
     S.hSmooth = hSmooth;
     S.hRefresh = hRefresh;
     S.hClosePlot = hClosePlot;
+    S.hExportEps = hExportEps;
     S.hStatus = hStatus;
     S.hInfo = hInfo;
     guidata(f, S);
@@ -400,6 +409,56 @@ function H = launchMicromovementExampleBrowser(varargin)
             S.state.currentPlotFigure = [];
         end
         guidata(f, S);
+    end
+
+    function onExportEps(~, ~)
+        S = guidata(f);
+        if isempty(S.state.currentPlotFigure) || ~ishandle(S.state.currentPlotFigure)
+            set(S.hStatus, 'String', 'No plot is open to export.', ...
+                'ForegroundColor', [0.7 0.1 0.1]);
+            guidata(f, S);
+            return;
+        end
+
+        try
+            [videoID, groupNames, ~, ~, ~, ~, ~, ~, ~, ~] = localReadControls(S);
+            emotionLabel = localEmotionForVideo(videoID, S.state.stimInfo);
+            groupLabel = strjoin(groupNames, '_');
+            if isempty(groupLabel)
+                groupLabel = 'no_groups';
+            end
+            groupLabel = regexprep(groupLabel, '[^\w-]+', '_');
+            defaultName = sprintf('%s_%s_%s_%s.eps', ...
+                S.state.currentSubjectID, videoID, emotionLabel, groupLabel);
+            [fileName, filePath] = uiputfile('*.eps', 'Export plot as EPS', defaultName);
+            if isequal(fileName, 0) || isequal(filePath, 0)
+                set(S.hStatus, 'String', 'EPS export canceled.', ...
+                    'ForegroundColor', [0.2 0.2 0.2]);
+                guidata(f, S);
+                return;
+            end
+
+            fig = S.state.currentPlotFigure;
+            oldRendererMode = get(fig, 'RendererMode');
+            oldRenderer = get(fig, 'Renderer');
+            set(fig, 'Renderer', 'painters');
+            drawnow;
+            saveFileName = fullfile(filePath, fileName);
+            print(fig, '-depsc', saveFileName);
+            if strcmpi(oldRendererMode, 'manual')
+                set(fig, 'Renderer', oldRenderer);
+            else
+                set(fig, 'RendererMode', oldRendererMode);
+            end
+
+            set(S.hStatus, 'String', sprintf('Exported EPS: %s', saveFileName), ...
+                'ForegroundColor', [0.2 0.2 0.2]);
+            guidata(f, S);
+        catch ME
+            set(S.hStatus, 'String', sprintf('EPS export failed: %s', ME.message), ...
+                'ForegroundColor', [0.7 0.1 0.1]);
+            guidata(f, S);
+        end
     end
 end
 

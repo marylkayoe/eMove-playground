@@ -1,0 +1,528 @@
+function fig = plotSubjectSpeedDensityByEmotion(rc, codingTable, varargin)
+% plotSubjectSpeedDensityByEmotion
+% Plot subject-level speed probability densities across selected emotions.
+%
+% Usage:
+%   fig = plotSubjectSpeedDensityByEmotion(rc, codingTable, ...
+%       'markerGroups', {'HEAD','UTORSO'}, ...
+%       'emotions', {'DISGUST','NEUTRAL','JOY'}, ...
+%       'useImmobile', true, ...
+%       'doBaselineNormalize', true)
+%
+% Inputs:
+%   rc
+%       One subject entry from resultsCell.
+%   codingTable
+%       Stimulus coding table with variables:
+%           videoID, emotion
+%
+% Name-value options:
+%   'markerGroups'
+%       Marker groups or browser aliases to plot.
+%   'markerGroupAliases'
+%       Struct or containers.Map that expands display aliases to canonical
+%       markerGroup names written in summaryTable.
+%   'emotions'
+%       Included emotions.
+%   'useImmobile'
+%       If true, use speedArrayImmobile. Otherwise use speedArray.
+%   'doBaselineNormalize'
+%       If true, divide samples by the subject baseline median for the same
+%       marker group and regime.
+%   'baselineEmotion'
+%       Emotion label used as baseline reference. Default: BASELINE.
+%   'immobilityThreshold'
+%       Threshold only used in titles/captions. Default: 35.
+%   'minBaselineSamples'
+%       Minimum baseline samples required for normalization. Default: 20.
+%   'outlierQuantile'
+%       Optional upper-tail trimming. Default: 0.99.
+%   'xLimitQuantile'
+%       Optional upper quantile used only for x-axis limits. Default: 0.95.
+%       Use 1.0 to keep the full data range.
+%   'tileCols'
+%       Number of subplot columns. Default: up to 2.
+%   'figureTitle'
+%       Optional figure title override.
+%   'showStats'
+%       If true, annotate each panel with a nonparametric omnibus or
+%       pairwise significance test. Default: true.
+
+p = inputParser;
+addParameter(p, 'markerGroups', {}, @(x) iscell(x) || isstring(x));
+addParameter(p, 'markerGroupAliases', struct(), @(x) isstruct(x) || isa(x, 'containers.Map'));
+addParameter(p, 'emotions', {}, @(x) iscell(x) || isstring(x));
+addParameter(p, 'useImmobile', true, @(x) islogical(x) && isscalar(x));
+addParameter(p, 'doBaselineNormalize', true, @(x) islogical(x) && isscalar(x));
+addParameter(p, 'baselineEmotion', 'BASELINE', @(x) ischar(x) || isstring(x));
+addParameter(p, 'immobilityThreshold', 35, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+addParameter(p, 'minBaselineSamples', 20, @(x) isnumeric(x) && isscalar(x) && x >= 0);
+addParameter(p, 'outlierQuantile', 0.99, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 1);
+addParameter(p, 'xLimitQuantile', 0.95, @(x) isnumeric(x) && isscalar(x) && x > 0 && x <= 1);
+addParameter(p, 'tileCols', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && x >= 1));
+addParameter(p, 'figureTitle', '', @(x) ischar(x) || isstring(x));
+addParameter(p, 'showStats', true, @(x) islogical(x) && isscalar(x));
+parse(p, varargin{:});
+
+markerGroups = cellstr(string(p.Results.markerGroups));
+markerGroupAliases = p.Results.markerGroupAliases;
+emotionList = cellstr(string(p.Results.emotions));
+useImmobile = p.Results.useImmobile;
+doBaselineNormalize = p.Results.doBaselineNormalize;
+baselineEmotion = char(string(p.Results.baselineEmotion));
+immobilityThreshold = p.Results.immobilityThreshold;
+minBaselineSamples = p.Results.minBaselineSamples;
+outlierQuantile = p.Results.outlierQuantile;
+xLimitQuantile = p.Results.xLimitQuantile;
+tileCols = p.Results.tileCols;
+figureTitle = char(string(p.Results.figureTitle));
+showStats = p.Results.showStats;
+
+if isempty(markerGroups)
+    error('plotSubjectSpeedDensityByEmotion:NoMarkerGroups', 'At least one marker group is required.');
+end
+if isempty(emotionList)
+    error('plotSubjectSpeedDensityByEmotion:NoEmotions', 'At least one emotion is required.');
+end
+if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
+    error('plotSubjectSpeedDensityByEmotion:MissingSummary', 'Subject entry has no summaryTable.');
+end
+
+[vidToEmotion, ~] = localBuildVideoMap(codingTable);
+emotionColorMap = localBuildEmotionColorMap(codingTable, emotionList);
+
+if useImmobile
+    speedField = 'speedArrayImmobile';
+    regimeLabel = sprintf('micromovement <= %g mm/s', immobilityThreshold);
+else
+    speedField = 'speedArray';
+    regimeLabel = 'full motion';
+end
+
+if isempty(tileCols)
+    tileCols = min(2, numel(markerGroups));
+end
+tileRows = ceil(numel(markerGroups) / tileCols);
+
+if isempty(strtrim(figureTitle))
+    subjectID = localSubjectID(rc);
+    normLabel = ternary(doBaselineNormalize, 'baseline-normalized', 'absolute');
+    figureTitle = sprintf('%s | %s | %s', subjectID, strjoin(emotionList, ', '), [normLabel ' | ' regimeLabel]);
+end
+
+fig = figure('Color', 'w', 'Units', 'pixels', 'Position', [100 80 1450 920]);
+tl = tiledlayout(fig, tileRows, tileCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+title(tl, figureTitle, 'FontSize', 20, 'FontWeight', 'bold', 'Interpreter', 'none');
+
+legendHandles = gobjects(numel(emotionList), 1);
+
+for g = 1:numel(markerGroups)
+    mg = markerGroups{g};
+    mgSpec = localResolveMarkerGroupSpec(mg, markerGroupAliases);
+
+    pooledVals = cell(numel(emotionList), 1);
+    for e = 1:numel(emotionList)
+        pooledVals{e} = localApplyOutlierCut(localCollectRawSamplesForSubjectNormalized( ...
+            rc, vidToEmotion, mgSpec, emotionList{e}, speedField, doBaselineNormalize, ...
+            baselineEmotion, speedField, minBaselineSamples), outlierQuantile);
+    end
+
+    ax = nexttile(tl, g);
+    hold(ax, 'on');
+    maxDensity = 0;
+    xLims = localPaddedLimits(cat(1, pooledVals{:}), xLimitQuantile);
+    for e = 1:numel(emotionList)
+        [h, peakY] = localPlotDensityWithMedian(ax, pooledVals{e}, emotionColorMap(emotionList{e}), xLims);
+        maxDensity = max(maxDensity, peakY);
+        if g == 1
+            legendHandles(e) = h;
+        end
+    end
+
+    xlim(ax, xLims);
+    ylim(ax, [0, max(0.05, maxDensity * 1.12)]);
+    grid(ax, 'on');
+    set(ax, 'Box', 'off', 'LineWidth', 1.0, 'FontSize', 11);
+    ax.Toolbar.Visible = 'off';
+    title(ax, localPrettyMarkerGroupLabel(mg), 'FontSize', 15, 'FontWeight', 'bold');
+    if g > (tileRows - 1) * tileCols
+        xlabel(ax, localXAxisLabel(doBaselineNormalize), 'FontSize', 12, 'FontWeight', 'bold');
+    end
+    if mod(g - 1, tileCols) == 0
+        ylabel(ax, 'Probability density', 'FontSize', 12, 'FontWeight', 'bold');
+    end
+    if ~any(cellfun(@(v) ~isempty(v), pooledVals))
+        text(ax, 0.5, 0.5, 'No samples for current selection', ...
+            'Units', 'normalized', ...
+            'HorizontalAlignment', 'center', ...
+            'VerticalAlignment', 'middle', ...
+            'FontSize', 12, ...
+            'Color', [0.45 0.45 0.45]);
+    end
+    if showStats
+        localAnnotateStats(ax, pooledVals, emotionList);
+    end
+end
+
+lgd = legend(legendHandles, emotionList, ...
+    'Location', 'southoutside', ...
+    'Orientation', 'horizontal', ...
+    'Box', 'off');
+set(lgd, 'FontSize', 12);
+
+caption = sprintf('Subject-level %s distributions. Thin vertical lines mark medians.', regimeLabel);
+annotation(fig, 'textbox', [0.12 0.02 0.76 0.04], ...
+    'String', caption, ...
+    'EdgeColor', 'none', ...
+    'HorizontalAlignment', 'center', ...
+    'FontSize', 11, ...
+    'Color', [0.25 0.25 0.25]);
+end
+
+function [vidToEmotion, emotions] = localBuildVideoMap(codingTable)
+vidToEmotion = containers.Map;
+emotions = {};
+vids = codingTable{:,1};
+emos = codingTable{:,2};
+if isstring(vids), vids = cellstr(vids); end
+if isstring(emos), emos = cellstr(emos); end
+for i = 1:numel(vids)
+    vid = char(string(vids{i}));
+    emo = char(string(emos{i}));
+    if isempty(strtrim(vid)) || isempty(strtrim(emo))
+        continue;
+    end
+    vidToEmotion(vid) = emo;
+    emotions{end+1,1} = emo; %#ok<AGROW>
+end
+emotions = unique(emotions, 'stable');
+end
+
+function emotionColorMap = localBuildEmotionColorMap(codingTable, emotionList)
+emotionColorMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
+vids = cellstr(string(codingTable{:,1}));
+grps = cellstr(string(codingTable{:,2}));
+codingCell = [vids, grps];
+[~, ~, uniqueGroups, groupColorMap] = resolveStimVideoColors(vids, codingCell);
+for i = 1:numel(uniqueGroups)
+    g = char(string(uniqueGroups{i}));
+    if isKey(groupColorMap, g)
+        emotionColorMap(g) = groupColorMap(g);
+    end
+end
+missing = {};
+for i = 1:numel(emotionList)
+    e = char(string(emotionList{i}));
+    if ~isKey(emotionColorMap, e)
+        missing{end+1,1} = e; %#ok<AGROW>
+    end
+end
+if ~isempty(missing)
+    cmap = lines(numel(missing));
+    for i = 1:numel(missing)
+        emotionColorMap(missing{i}) = cmap(i,:);
+    end
+end
+end
+
+function markerGroupSpec = localResolveMarkerGroupSpec(markerGroupKey, markerGroupAliases)
+key = char(string(markerGroupKey));
+if isa(markerGroupAliases, 'containers.Map')
+    if isKey(markerGroupAliases, key)
+        markerGroupSpec = cellstr(string(markerGroupAliases(key)));
+    else
+        markerGroupSpec = {key};
+    end
+    return;
+end
+if isstruct(markerGroupAliases) && isfield(markerGroupAliases, key)
+    markerGroupSpec = cellstr(string(markerGroupAliases.(key)));
+else
+    markerGroupSpec = {key};
+end
+end
+
+function mask = localMarkerGroupMask(st, markerGroupSpec)
+mgCol = string(st.markerGroup);
+spec = cellstr(string(markerGroupSpec));
+mask = ismember(mgCol, string(spec));
+end
+
+function vals = localCollectRawSamplesForSubjectNormalized(rc, vidToEmotion, markerGroupSpec, emotion, speedField, doBaselineNormalize, baselineEmotion, baselineFromField, minBaselineSamples)
+vals = [];
+st = rc.summaryTable;
+if ~ismember(speedField, st.Properties.VariableNames)
+    return;
+end
+emoCol = localEmotionColumn(st, vidToEmotion);
+if isempty(emoCol)
+    return;
+end
+idx = localMarkerGroupMask(st, markerGroupSpec) & strcmp(emoCol, emotion);
+if ~any(idx)
+    return;
+end
+rowIdx = find(idx);
+for j = 1:numel(rowIdx)
+    r = rowIdx(j);
+    cellVal = st.(speedField){r};
+    if isempty(cellVal)
+        continue;
+    end
+    thisVals = cellVal(:);
+    thisVals = thisVals(~isnan(thisVals));
+    if isempty(thisVals)
+        continue;
+    end
+    if doBaselineNormalize
+        thisGroup = char(string(st.markerGroup{r}));
+        baseVal = localBaselineScalarForSubject(rc, vidToEmotion, thisGroup, baselineEmotion, baselineFromField, minBaselineSamples);
+        if ~isfinite(baseVal)
+            continue;
+        end
+        thisVals = thisVals ./ baseVal;
+    end
+    vals = [vals; thisVals]; %#ok<AGROW>
+end
+end
+
+function baseVal = localBaselineScalarForSubject(rc, vidToEmotion, markerGroup, baselineEmotion, baselineFromField, minBaselineSamples)
+baseVal = NaN;
+if ~isfield(rc, 'summaryTable') || isempty(rc.summaryTable)
+    return;
+end
+st = rc.summaryTable;
+if ~ismember(baselineFromField, st.Properties.VariableNames)
+    return;
+end
+emoCol = localEmotionColumn(st, vidToEmotion);
+if isempty(emoCol)
+    return;
+end
+idx = strcmp(string(st.markerGroup), string(markerGroup)) & strcmp(emoCol, baselineEmotion);
+if ~any(idx)
+    return;
+end
+if strcmp(baselineFromField, 'speedArray') || strcmp(baselineFromField, 'speedArrayImmobile')
+    pooled = [];
+    rows = find(idx);
+    for r = rows(:)'
+        vals = st.(baselineFromField){r};
+        pooled = [pooled; vals(:)]; %#ok<AGROW>
+    end
+    pooled = pooled(~isnan(pooled));
+    if numel(pooled) < minBaselineSamples
+        return;
+    end
+    baseVal = median(pooled, 'omitnan');
+else
+    vals = st.(baselineFromField)(idx);
+    vals = vals(~isnan(vals));
+    if numel(vals) < max(1, minBaselineSamples)
+        return;
+    end
+    baseVal = median(vals, 'omitnan');
+end
+if ~(isfinite(baseVal) && baseVal > 0)
+    baseVal = NaN;
+end
+end
+
+function emoCol = localEmotionColumn(st, vidToEmotion)
+emoCol = [];
+if ~ismember('videoID', st.Properties.VariableNames)
+    return;
+end
+vids = cellstr(string(st.videoID));
+emoCol = repmat({''}, size(vids));
+for i = 1:numel(vids)
+    if isKey(vidToEmotion, vids{i})
+        emoCol{i} = vidToEmotion(vids{i});
+    end
+end
+end
+
+function vals = localApplyOutlierCut(vals, q)
+vals = vals(:);
+vals = vals(~isnan(vals) & isfinite(vals));
+if isempty(vals) || q >= 1
+    return;
+end
+hi = quantile(vals, q);
+vals = vals(vals <= hi);
+end
+
+function [h, peakY] = localPlotDensityWithMedian(ax, vals, colorVal, xLims)
+if nargin < 3 || isempty(colorVal)
+    colorVal = [0 0 0];
+end
+if nargin < 4 || isempty(xLims)
+    xLims = [];
+end
+vals = vals(:);
+vals = vals(~isnan(vals) & isfinite(vals));
+if numel(vals) < 2
+    h = plot(ax, nan, nan, 'Color', colorVal, 'LineWidth', 2.2);
+    peakY = 0;
+    return;
+end
+if isempty(xLims)
+    [f, x] = ksdensity(vals, 'Function', 'pdf');
+    medVal = median(vals, 'omitnan');
+else
+    vals = vals(vals >= xLims(1) & vals <= xLims(2));
+    if numel(vals) < 2
+        h = plot(ax, nan, nan, 'Color', colorVal, 'LineWidth', 2.2);
+        peakY = 0;
+        return;
+    end
+    xGrid = linspace(xLims(1), xLims(2), 256);
+    [f, x] = ksdensity(vals, xGrid, 'Function', 'pdf');
+    medVal = median(vals, 'omitnan');
+end
+h = plot(ax, x, f, 'Color', colorVal, 'LineWidth', 2.2);
+peakY = max(f);
+if isempty(xLims) || (medVal >= xLims(1) && medVal <= xLims(2))
+    plot(ax, [medVal medVal], [0 peakY], ':', 'Color', colorVal, 'LineWidth', 2.0);
+end
+end
+
+function lims = localPaddedLimits(vals, xLimitQuantile)
+vals = vals(:);
+vals = vals(~isnan(vals) & isfinite(vals));
+if isempty(vals)
+    lims = [0 1];
+    return;
+end
+if nargin < 2 || isempty(xLimitQuantile)
+    xLimitQuantile = 1.0;
+end
+vmin = min(vals);
+if xLimitQuantile >= 1
+    vmax = max(vals);
+else
+    vmax = quantile(vals, xLimitQuantile);
+    valsInRange = vals(vals <= vmax);
+    if ~isempty(valsInRange)
+        vmin = min(valsInRange);
+    end
+end
+if vmin == vmax
+    pad = max(0.1, abs(vmin) * 0.1 + 0.1);
+else
+    pad = (vmax - vmin) * 0.08;
+end
+lims = [vmin - pad, vmax + pad];
+end
+
+function xlab = localXAxisLabel(doBaselineNormalize)
+if doBaselineNormalize
+    xlab = 'Speed (fold baseline)';
+else
+    xlab = 'Speed (mm/s)';
+end
+end
+
+function s = localPrettyMarkerGroupLabel(raw)
+s = char(string(raw));
+switch upper(s)
+    case 'HEAD'
+        s = 'Head';
+    case 'UTORSO'
+        s = 'Upper torso';
+    case 'LTORSO'
+        s = 'Lower torso';
+    case 'ARMS'
+        s = 'Arms';
+    case 'WRISTS'
+        s = 'Wrists';
+    case 'LEGS'
+        s = 'Legs';
+    otherwise
+        s = strrep(s, '_', '-');
+end
+end
+
+function subjectID = localSubjectID(rc)
+subjectID = '';
+if isfield(rc, 'subjectID') && ~isempty(rc.subjectID)
+    subjectID = char(string(rc.subjectID));
+end
+if isempty(subjectID)
+    subjectID = 'unknown_subject';
+end
+end
+
+function out = ternary(cond, a, b)
+if cond
+    out = a;
+else
+    out = b;
+end
+end
+
+function localAnnotateStats(ax, pooledVals, emotionList)
+vals = [];
+grp = [];
+for i = 1:numel(pooledVals)
+    v = pooledVals{i};
+    v = v(:);
+    v = v(~isnan(v) & isfinite(v));
+    if isempty(v)
+        continue;
+    end
+    vals = [vals; v]; %#ok<AGROW>
+    grp = [grp; repmat(i, numel(v), 1)]; %#ok<AGROW>
+end
+if isempty(vals) || numel(unique(grp)) < 2
+    return;
+end
+
+if numel(unique(grp)) == 2
+    groupA = pooledVals{find(unique(grp) == 1, 1, 'first')};
+    groupB = pooledVals{find(unique(grp) == 2, 1, 'first')};
+    groupA = groupA(:); groupA = groupA(~isnan(groupA) & isfinite(groupA));
+    groupB = groupB(:); groupB = groupB(~isnan(groupB) & isfinite(groupB));
+    if isempty(groupA) || isempty(groupB)
+        return;
+    end
+    pVal = ranksum(groupA, groupB);
+    testLabel = 'RS';
+else
+    pVal = kruskalwallis(vals, grp, 'off');
+    testLabel = 'KW';
+end
+
+stars = localPStars(pVal);
+txt = sprintf('%s %s p=%s', stars, testLabel, localFormatPValue(pVal));
+text(ax, 0.02, 0.98, txt, ...
+    'Units', 'normalized', ...
+    'HorizontalAlignment', 'left', ...
+    'VerticalAlignment', 'top', ...
+    'FontSize', 11, ...
+    'FontWeight', 'bold', ...
+    'Color', [0.15 0.15 0.15], ...
+    'BackgroundColor', 'none');
+end
+
+function s = localPStars(pVal)
+if pVal < 0.001
+    s = '***';
+elseif pVal < 0.01
+    s = '**';
+elseif pVal < 0.05
+    s = '*';
+else
+    s = 'n.s.';
+end
+end
+
+function s = localFormatPValue(pVal)
+if pVal < 1e-3
+    s = sprintf('%.1e', pVal);
+elseif pVal < 0.01
+    s = sprintf('%.3f', pVal);
+else
+    s = sprintf('%.2f', pVal);
+end
+end

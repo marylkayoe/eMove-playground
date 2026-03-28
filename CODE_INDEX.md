@@ -67,12 +67,19 @@ This document maps the current MATLAB codebase so new contributors can quickly f
   - Interactive non-poster plotting browsers.
   - Main files:
     - `launchCdfComparisonBrowser.m`
+    - `launchSubjectDensityBrowser.m`
   - Current notes:
     - left/right limb groups are collapsed into combined browser options:
       - `Arms`
       - `Wrists`
       - `Legs`
     - supports EPS export (`painters` + `print -depsc`) for Illustrator workflows.
+    - subject density browser plots per-subject KDE speed distributions for one or more selected emotions and bodyparts.
+    - subject density browser supports:
+      - baseline-normalized or absolute display,
+      - full-motion or micromovement-only selection,
+      - optional panel-level significance annotations,
+      - quantile-based x-range clipping for long-tailed distributions.
 
 - `CODE/APPS/`
   - Deployment-aware app entrypoints for packaged or user-facing tools.
@@ -116,6 +123,7 @@ Current expected fields:
   - `scripts/launch_bodypart_grouping_helper.m`
   - `scripts/launch_micromovement_example_browser.m`
   - `scripts/launch_cdf_comparison_browser.m`
+  - `scripts/launch_subject_density_browser.m`
   - `scripts/make_disgust_neutral_panels.m`
   - `scripts/run_testing_smoke.m`
   - `scripts/plot_session_timeline_batch.m`
@@ -187,6 +195,10 @@ These files contain computation logic and should be treated as approval-required
   - `CODE/PLOTTING/gui/launchCdfComparisonBrowser.m`
   - use this to compare one or more emotions across selected bodyparts and plot modes.
   - note: browser labels can be combined aliases, while the underlying plotter aggregates the matching canonical result-cell groups.
+- Subject-level emotion distribution exploration:
+  - `CODE/PLOTTING/gui/launchSubjectDensityBrowser.m`
+  - use this to inspect one subject at a time across selected emotions and bodyparts using KDE density plots.
+  - note: x-limit quantile clipping is a display-and-support setting for the plotted KDE, intended to make long-tailed distributions readable without changing the saved analysis results.
 - Presentation-ready focused export:
   - `scripts/make_disgust_neutral_panels.m`
   - currently oriented toward producing Panel C / Panel D style CDF figures for collaborator or funder slides.

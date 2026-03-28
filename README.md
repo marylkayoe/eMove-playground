@@ -54,6 +54,29 @@ Current analysis run scripts:
     - full-speed vs micromovement comparison,
     - baseline-normalized vs absolute display,
     - EPS export via `painters` rendering for Illustrator-friendly vector output.
+- Subject-level density browser:
+  - launcher: `scripts/launch_subject_density_browser.m`
+  - main file: `CODE/PLOTTING/gui/launchSubjectDensityBrowser.m`
+  - current capabilities:
+    - one-subject exploration of speed distributions by selected emotion set,
+    - one or more combined display groups:
+      - `Head`
+      - `Upper torso`
+      - `Lower torso`
+      - `Arms`
+      - `Wrists`
+      - `Legs`
+    - full-motion or micromovement-only display,
+    - baseline-normalized or absolute display,
+    - optional panel-level significance annotations:
+      - `ranksum` for two selected emotions,
+      - `Kruskal-Wallis` for three or more,
+    - quantile-based x-range clipping for long-tailed distributions,
+    - EPS export via `painters` rendering for Illustrator-friendly vector output.
+  - current caveats:
+    - the browser uses KDE (`ksdensity`) rather than histogram bins,
+    - the selected x-limit quantile defines both the displayed range and the support of the plotted KDE after trimming values to that range,
+    - collapsed browser labels are display aliases only; the underlying saved result-cell group names remain canonical left/right labels.
 
 ## Session Structure (Canonical)
 - One continuous mocap recording per subject session.

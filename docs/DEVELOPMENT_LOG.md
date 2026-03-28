@@ -110,6 +110,57 @@ This document tracks project state, implementation decisions, and validation run
     - `LOWER_LIMB_L`
     - `LOWER_LIMB_R`
 
+### Subject-Level Density Browser
+- Added:
+  - `CODE/PLOTTING/gui/launchSubjectDensityBrowser.m`
+  - `CODE/PLOTTING/plotSubjectSpeedDensityByEmotion.m`
+  - `scripts/launch_subject_density_browser.m`
+- Purpose:
+  - interactively inspect one subject at a time,
+  - choose one or more emotions and browser bodypart groups,
+  - display probability-density curves for full-motion or micromovement-only speed samples,
+  - optionally view absolute or baseline-normalized speed,
+  - export the current figure as Illustrator-friendly EPS.
+
+### Subject Density Browser Behavior
+- Uses the same collapsed browser-side display groups as the CDF browser:
+  - `Head`
+  - `Upper torso`
+  - `Lower torso`
+  - `Arms`
+  - `Wrists`
+  - `Legs`
+- Uses KDE (`ksdensity`) rather than histogram bins.
+- Supports:
+  - optional `ranksum` annotation when exactly two emotions are selected,
+  - optional `Kruskal-Wallis` annotation when three or more emotions are selected,
+  - quantile-based x-range clipping to keep long-tailed speed distributions readable.
+
+### Subject Density Browser Fixes
+- Fixed duplicate browser-window behavior:
+  - control changes no longer auto-open plot windows,
+  - the control window is now treated as a singleton,
+  - the launcher script now calls the browser entrypoint directly instead of `run(...)` on the function file.
+- Fixed long-tail `ksdensity` support error that was triggered by some `LEGS` selections:
+  - prior error:
+    - `Data values must be between lower and upper 'Support' values.`
+  - current behavior:
+    - values are trimmed to the selected display range before KDE evaluation,
+    - the selected x-limit quantile now consistently defines the plotted KDE support.
+- Added explicit empty-state handling:
+  - panels with no usable values now show `No samples for current selection`.
+
+### Validation Runs
+- MATLAB smoke test:
+  - subject density browser launches successfully against the current `resultsCell.mat`.
+- MATLAB targeted regression test:
+  - subject `HH2603`,
+  - `LEGS`,
+  - emotions `NEUTRAL` and `DISGUST`,
+  - `micromovement only = true`,
+  - `baseline-normalized = true`
+  - now runs without the prior `ksdensity` support-range error.
+
 ## 2026-03-14
 
 ### Regime-Distinctness Analysis Passes

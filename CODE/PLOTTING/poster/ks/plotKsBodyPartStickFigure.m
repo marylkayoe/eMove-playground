@@ -40,6 +40,13 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
     addParameter(p, 'plotWhere', [], @(x) isempty(x) || isgraphics(x, 'axes'));
     addParameter(p, 'cLim', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2));
     addParameter(p, 'colormapName', 'turbo');
+    addParameter(p, 'baseLineWidth', 8, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'groupLineWidthScale', 1, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'nodeMarkerSize', 4, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'labelFontSize', 9, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'titleFontSize', 13, @(x) isnumeric(x) && isscalar(x) && x > 0);
+    addParameter(p, 'missingColor', [0.82 0.82 0.82], @(x) isnumeric(x) && numel(x) == 3);
+    addParameter(p, 'missingAlpha', 1.0, @(x) isnumeric(x) && isscalar(x) && x >= 0 && x <= 1);
     parse(p, ksTbl, emotionPair, varargin{:});
 
     pair = cellstr(string(emotionPair));
@@ -92,7 +99,7 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
         a = segments{i,1}; b = segments{i,2};
         p1 = markerNodes.(a); p2 = markerNodes.(b);
         hSeg(end+1,1) = plot(ax, [p1(1) p2(1)], [p1(2) p2(2)], '-', ... %#ok<AGROW>
-            'Color', [0.85 0.85 0.85], 'LineWidth', 8, 'HandleVisibility', 'off');
+            'Color', [0.85 0.85 0.85], 'LineWidth', p.Results.baseLineWidth, 'HandleVisibility', 'off');
     end
 
     % Overlay grouped body-part highlights.
@@ -102,13 +109,13 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
         grp = def.markerGroup{i};
         idx = find(strcmp(S.markerGroup, grp), 1, 'first');
         if isempty(idx) || ~isfinite(S.value(idx))
-            color = [0.15 0.15 0.15];
-            alpha = 0.18;
-            lw = def.lineWidth(i);
+            color = p.Results.missingColor;
+            alpha = p.Results.missingAlpha;
+            lw = def.lineWidth(i) * p.Results.groupLineWidthScale;
         else
             color = cfun(S.value(idx), cLim, cmap);
             alpha = 1.0;
-            lw = def.lineWidth(i);
+            lw = def.lineWidth(i) * p.Results.groupLineWidthScale;
         end
         drawColor = localBlendWithWhite(color, alpha);
 
@@ -152,7 +159,7 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
         if ~isempty(labelLines)
             hText(end+1,1) = text(ax, pTxt(1), pTxt(2), strjoin(labelLines, newline), ... %#ok<AGROW>
                 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
-                'FontSize', 9, 'Color', [0.1 0.1 0.1], 'Interpreter', 'none');
+                'FontSize', p.Results.labelFontSize, 'Color', [0.1 0.1 0.1], 'Interpreter', 'none');
         end
     end
 
@@ -162,7 +169,7 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
     for i = 1:numel(nodeNames)
         XY(i,:) = markerNodes.(nodeNames{i});
     end
-    hNode = plot(ax, XY(:,1), XY(:,2), 'ko', 'MarkerFaceColor', 'w', 'MarkerSize', 4);
+    hNode = plot(ax, XY(:,1), XY(:,2), 'ko', 'MarkerFaceColor', 'w', 'MarkerSize', p.Results.nodeMarkerSize);
     uistack(hNode, 'top');
 
     xlim(ax, [-1.3 1.3]);
@@ -172,7 +179,7 @@ function R = plotKsBodyPartStickFigure(ksTbl, emotionPair, varargin)
     if isempty(strtrim(titleText))
         titleText = sprintf('Body-part discriminability | %s', pairLabel);
     end
-    title(ax, titleText, 'Interpreter', 'none', 'FontWeight', 'bold', 'FontSize', 13);
+    title(ax, titleText, 'Interpreter', 'none', 'FontWeight', 'bold', 'FontSize', p.Results.titleFontSize);
 
     if p.Results.showColorbar
         colormap(ax, cmap);

@@ -306,3 +306,118 @@ This document is intentionally incomplete and should be expanded into manuscript
 - unresolved stimulus labels are finalized,
 - self-report trial-to-video mapping is finalized,
 - final participant inclusion list is frozen.
+
+## 12) Poster-Oriented Bodypart Summary Maps (2026-03-29 Working Convention)
+
+During poster development, a separate descriptive figure family was built to
+answer the question:
+
+- "where in the body is a target emotion most distinguishable from comparison emotions?"
+
+These figures are implemented by:
+- `scripts/make_fear_summary_bodymap.m`
+- `CODE/PLOTTING/poster/ks/plotKsBodyPartStickFigure.m`
+
+Despite the historical script name, the same generator is now used for:
+- `FEAR vs others`
+- `DISGUST vs other non-fear emotions`
+- `JOY vs other non-fear emotions`
+- `SAD vs other non-fear emotions`
+
+### 12.1 Quantity Displayed
+
+For a chosen target emotion and bodypart:
+
+1. within each subject, compute pairwise KS distances between the target emotion
+   and each comparison emotion using the selected speed array
+2. take the within-subject median across those target-vs-other pairs
+3. aggregate across subjects by the median
+
+Thus each colored bodypart shows:
+- a subject-aware median KS summary
+- not a pooled-sample KS
+- and not a p-value
+
+### 12.2 Baseline-Normalized Convention
+
+Current poster-facing body maps use **baseline-normalized** speed distributions.
+
+Operational rule:
+- for each subject and bodypart, speed samples are divided by that
+  subject/bodypart baseline median before `kstest2` is computed
+
+Reason:
+- this keeps the figure family aligned with the rest of the poster, which now
+  emphasizes baseline-normalized motion comparisons
+
+### 12.3 Full vs Micromovement Panels
+
+Each figure contains two panels:
+- full motion
+- micromovement
+
+Current micromovement implementation:
+- uses the precomputed immobility arrays already stored in `resultsCell`
+  (`speedArrayImmobile`)
+- therefore these figures inherit the same micromovement-regime caveat as the
+  subject density browser:
+  - they do **not** recompute micromovement live from raw speed arrays
+  - they summarize the existing precomputed low-animation regime
+
+### 12.4 FEAR Treated Separately
+
+Poster development established a useful practical distinction:
+
+- `FEAR` behaves as a strong special-case emotion and is shown against all other emotions
+- non-fear emotions (`DISGUST`, `JOY`, `SAD`) are more interpretable when
+  summarized against **other non-fear emotions**, rather than against a set
+  dominated by `FEAR`
+
+Reason:
+- including `FEAR` in non-fear summary averages can make the resulting map look
+  mostly like "distance from FEAR" rather than a cleaner summary of the target
+  non-fear emotion
+
+### 12.5 Display Conventions
+
+Current poster-oriented display decisions:
+- legs are shown in neutral gray and are excluded from color-scale calculation
+- the color scale is shared between full and micromovement panels within a
+  figure
+- the color scale is based on the **displayed non-gray bodypart values**, not
+  on zero-to-maximum range
+
+Reason:
+- a zero-based scale was visually honest but compressed the useful range because
+  gray-leg exclusion left only upper-range values visible
+- scaling to displayed non-gray min/max makes the anatomical differences easier
+  to read on a poster
+
+### 12.6 Current Emotion-Specific Colormap Convention
+
+Current poster styling uses one saturated sequential color family per target:
+- `FEAR`: red / orange-red
+- `DISGUST`: green
+- `JOY`: magenta
+- `SAD`: blue
+
+This is a presentation-oriented design choice intended to make the four target
+emotion summaries visually easy to distinguish when placed on the same poster.
+
+Important caveat:
+- because each figure uses its own displayed-range color limits and its own
+  hue family, the body maps are best interpreted **within figure**, not as
+  absolute cross-figure magnitude comparisons.
+
+### 12.7 Scope Limitation
+
+These body maps are currently best treated as:
+- descriptive poster figures
+- anatomically organized summaries of distinguishability
+
+They are **not** the main inferential reporting path.
+
+The main statistical reporting path remains:
+- per-subject pairwise KS computation
+- aggregation across subjects
+- explicit heatmap/scatter/CDF-based analyses with written caveats

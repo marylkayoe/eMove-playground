@@ -138,6 +138,9 @@ Current expected fields:
   - `scripts/launch_micromovement_example_browser.m`
   - `scripts/launch_cdf_comparison_browser.m`
   - `scripts/launch_subject_density_browser.m`
+  - `scripts/make_fear_summary_bodymap.m`
+  - `scripts/make_analysis_workflow_figure.m`
+  - `scripts/export_analysis_workflow_trace_panel.m`
   - `scripts/make_disgust_neutral_panels.m`
   - `scripts/run_testing_smoke.m`
   - `scripts/plot_session_timeline_batch.m`
@@ -215,6 +218,17 @@ These files contain computation logic and should be treated as approval-required
   - note: x-limit quantile clipping is a display-and-support setting for the plotted KDE, intended to make long-tailed distributions readable without changing the saved analysis results.
   - note: micromovement mode currently reflects the precomputed immobile arrays already stored in `resultsCell`, not a live threshold recomputation inside the browser.
   - note: the paired heatmap view inside this browser is exploratory and is not identical to the subject-aggregated batch `computeKsDistancesFromResultsCell` / `plotKsHeatmap` reporting path.
+- Poster-oriented bodypart summary maps:
+  - `scripts/make_fear_summary_bodymap.m`
+  - despite the historical name, this script is currently the shared generator
+    for target-emotion body maps (`FEAR`, `DISGUST`, `JOY`, `SAD`).
+  - current convention:
+    - baseline-normalized target-vs-other KS summaries,
+    - full vs micromovement side-by-side,
+    - legs shown in neutral gray and excluded from color-scale computation,
+    - EPS export via `painters`,
+    - figure color scales are shared within each figure but tuned to the
+      displayed non-gray aggregated range.
 - Presentation-ready focused export:
   - `scripts/make_disgust_neutral_panels.m`
   - currently oriented toward producing Panel C / Panel D style CDF figures for collaborator or funder slides.

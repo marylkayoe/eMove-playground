@@ -201,6 +201,109 @@ This document tracks project state, implementation decisions, and validation run
   - confirmed that subject-density micromovement mode is currently reading the precomputed `speedArrayImmobile` field,
   - therefore a future browser-side enhancement is needed if live threshold changes are to be supported honestly.
 
+## 2026-03-29
+
+### Poster Figure Development: Workflow, Example, And Bodypart Summary
+- Generated a workflow-explainer figure for the poster pipeline:
+  - `scripts/make_analysis_workflow_figure.m`
+  - `scripts/export_analysis_workflow_trace_panel.m`
+- The current workflow figure explains, in order:
+  - continuous motion recording,
+  - low-animation sample selection,
+  - pooling by emotion,
+  - distribution comparison,
+  - bodypart-level summary mapping.
+
+### Poster Figure Development: Single-Subject Density Examples
+- Built single-subject density/CDF-style figures to compare:
+  - full motion vs micromovement,
+  - baseline-normalized and absolute variants,
+  - focused on `HEAD`, `UTORSO`, `LTORSO`.
+- Screening confirmed:
+  - `SC3001` remains the cleanest subject for illustrating the reversal-style
+    baseline-normalized pattern,
+  - while some other subjects show more sustained low-motion periods but less
+    visually clean reversal structure.
+
+### Important Micromovement Interpretation Note
+- During this pass it was confirmed that:
+  - browser-side example and density tools can visually imply a thresholded
+    low-animation regime,
+  - while some views are actually reading precomputed `speedArrayImmobile`
+    arrays rather than recomputing from a live threshold entry.
+- Immediate practical response:
+  - misleading live threshold control was removed from the subject density browser.
+- Remaining future work:
+  - if live threshold adjustment is desired, recomputation must be wired
+    explicitly from raw `speedArray` rather than title-only relabeling.
+
+### Residual-Quality Check Attempt
+- Investigated whether raw Vicon CSV exports contain triangulation residual or
+  equivalent marker-reconstruction quality columns.
+- Current finding:
+  - the inspected CSV export format contains positions and related channels,
+    but no residual / occlusion / reconstruction-quality columns usable for a
+    residual browser.
+- Consequence:
+  - residual-vs-micromovement QC cannot currently be added from the present
+    exported files alone.
+
+### Poster Figure Development: Target-Emotion Body Maps
+- Added / generalized:
+  - `scripts/make_fear_summary_bodymap.m`
+- Despite the historical name, the script now supports:
+  - `FEAR`
+  - `DISGUST`
+  - `JOY`
+  - `SAD`
+- Summary logic:
+  - within each subject and bodypart, compute KS distances for
+    target-vs-comparison pairs,
+  - take the within-subject median across those pairs,
+  - aggregate across subjects by median for display.
+
+### Poster Body-Map Decisions Recorded
+- Baseline-normalized body maps are now the preferred poster-facing version.
+- `FEAR` is treated as a special-case summary against all other emotions.
+- Non-fear target maps (`DISGUST`, `JOY`, `SAD`) are summarized against other
+  non-fear emotions only.
+- Legs are intentionally rendered in neutral gray and excluded from color-scale
+  computation.
+- Current styling preference:
+  - `FEAR`: red
+  - `DISGUST`: green
+  - `JOY`: magenta
+  - `SAD`: blue
+- Vector export (`EPS` using `painters`) was added for these figure families.
+
+### Body-Map Color-Scale Caveat And Fix
+- Several intermediate body-map versions used:
+  - zero-to-maximum scaling,
+  - or scaling based on all raw values rather than displayed aggregated values.
+- This made the figures visually misleading or too compressed.
+- Current operational choice:
+  - scale each figure from the displayed non-gray minimum to the displayed
+    non-gray maximum,
+  - while keeping the scale shared across the full and micromovement panels
+    within that figure.
+- Caveat:
+  - this improves poster readability,
+  - but makes the color scales not directly comparable in absolute magnitude
+    across different target-emotion figures.
+
+### Poster PDF Snapshot Note
+- Current poster snapshot reviewed:
+  - `JarvelaNCM2026.pdf`
+- Current strong elements:
+  - clear concept framing,
+  - good use of single-subject and pooled comparisons,
+  - useful distinction between motion and low-animation regime.
+- Current weaknesses to keep in mind:
+  - figure-family semantics are not yet fully harmonized,
+  - some panels still rely on exploratory visual conventions,
+  - body-map/cdf/heatmap scales need consistent captioning so viewers do not
+    assume more comparability than is warranted.
+
 ## 2026-03-14
 
 ### Regime-Distinctness Analysis Passes

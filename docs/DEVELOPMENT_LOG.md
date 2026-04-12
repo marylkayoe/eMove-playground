@@ -218,6 +218,78 @@ This document tracks project state, implementation decisions, and validation run
 - Built single-subject density/CDF-style figures to compare:
   - full motion vs micromovement,
   - baseline-normalized and absolute variants,
+
+## 2026-04-12
+
+### EmoWear Accelerometer Browser And Regime Definition Pass
+- Added an EmoWear MATLAB browser for synchronized wearable traces:
+  - `scripts/launch_emowear_accel_browser.m`
+  - `CODE/PLOTTING/gui/launchEmoWearAccelBrowser.m`
+  - `CODE/APPS/launchEmoWearAccelBrowserApp.m`
+- Browser now includes:
+  - participant / device / signal / sequence browsing,
+  - standard MATLAB zoom / pan tools,
+  - pre-walk and walking zoom buttons,
+  - overlayed task markers,
+  - shading for low-animation and sustained-walking regimes.
+
+### Dynamic-Magnitude Revision
+- Rejected the initial full-session median-centered accelerometer norm after trace inspection showed posture/orientation artifacts.
+- Current dynamic-motion proxy:
+  - `0.5 s` rolling per-axis standard deviation magnitude.
+- This is now the default dynamic quantity used in the browser and in the current EmoWear regime analyses.
+
+### New Regime Helpers
+- Added:
+  - `CODE/ANALYSIS/getLowAnimationFramesFromMotionMagnitude.m`
+  - `CODE/ANALYSIS/getContinuousWalkingFramesFromMotionMagnitude.m`
+- Current low-animation rule:
+  - motion `< 40`
+  - fill high gaps `<= 0.1 s`
+  - require sustained low runs `>= 0.5 s`
+- Current sustained-walking rule:
+  - motion `> 100`
+  - fill low gaps `<= 0.25 s`
+  - require sustained high runs `>= 1.0 s`
+
+### EmoWear Histogram / Threshold Work
+- Added pooled frame-distribution scripts:
+  - `scripts/run_emowear_prewalk_frame_histogram_rolling05.m`
+  - `scripts/run_emowear_walk_frame_histogram_rolling05.m`
+- Pre-walk dynamic distribution showed:
+  - upper tail emerging around `30-35`
+  - `p99` around `48`
+- Walk dynamic distribution showed:
+  - low-valued component near `15-40`
+  - transition region around `50-80`
+  - main walking bulk clearly above that.
+
+### EmoWear Scatter Comparisons
+- Added:
+  - `scripts/run_emowear_prewalk_lowanim_scatter_rolling05.m`
+  - `scripts/run_emowear_regime_scatter_comparison.m`
+  - `scripts/plot_emowear_dynamic_to_dynamic_by_subject.m`
+- Current regime-defined comparison result:
+  - `dynamic -> dynamic` gives a modest negative pooled association
+  - `raw -> raw` and `dynamic -> raw` largely remove that association
+- Current interpretation:
+  - the result depends materially on whether locomotion vigor is defined in the dynamic-envelope domain or in the raw waveform-amplitude domain.
+
+### Browser Fixes
+- Fixed stale shading overlays persisting across replot / subject changes.
+- Compacted button layout and renamed buttons:
+  - `Refresh`
+  - `Pre-walk`
+  - `Walk`
+- Added `Walk` view for `walkB -> walkFinish`.
+
+### Next Planned Direction
+- Pause question 1 here.
+- Next analysis target:
+  - relate clip / video properties to:
+    - low-animation pre-walk motion,
+    - locomotion vigor,
+    - or both.
   - focused on `HEAD`, `UTORSO`, `LTORSO`.
 - Screening confirmed:
   - `SC3001` remains the cleanest subject for illustrating the reversal-style

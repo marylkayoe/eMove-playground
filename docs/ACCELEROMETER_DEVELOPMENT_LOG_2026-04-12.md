@@ -258,6 +258,326 @@ Important distinction:
 Do not start with modeling.
 
 Start with:
+
+## 8) STb Pivot And Main Outcome
+
+The strongest methodological lesson from the clip-analysis phase was that
+sensor choice mattered more than expected.
+
+- `bh3.acc` was useful for browser development and regime prototyping because
+  it has simple `timestamp, x, y, z` columns and broad participant coverage.
+- But the strongest clip-related effects did not live there.
+- Once the analysis moved to `front.acc` (sternum-mounted ST SensorTile,
+  first accelerometer triad `lis2dw12`), the clip-view signal became clearly
+  stronger.
+
+Current working motion definition on `front STb`:
+- decimate raw front STb accelerometer `10x`
+- compute `0.5 s` rolling per-axis standard deviation
+- combine as:
+  - `sqrt(sd_x^2 + sd_y^2 + sd_z^2)`
+- then restrict clip-view summaries to low-animation frames
+
+Important clarification:
+- this is a local-variability / dynamic-envelope measure
+- not raw magnitude
+- not rolling RMS
+- not the older whole-record median-centered norm
+
+## 9) Regime Definitions That Survived
+
+The following regime rules survived repeated trace inspection and multiple
+failed simpler alternatives:
+
+### Low-animation
+- threshold `< 40`
+- fill high interruptions `<= 0.1 s`
+- require low-animation runs `>= 0.5 s`
+
+### Sustained walking
+- threshold `> 100`
+- fill low interruptions `<= 0.25 s`
+- require walking runs `>= 1.0 s`
+
+These should now be treated as the current operative definitions for the
+front-STb analyses unless a later threshold review explicitly replaces them.
+
+## 10) What Failed And Why
+
+Several candidate analyses turned out not to be robust enough:
+
+- `bh3` first-pass "dynamic magnitude" based on whole-record axis median
+  centering:
+  - rejected because posture / orientation changes could create artifactual
+    step-like increases.
+- raw-amplitude walking summaries:
+  - visually clean for gait waveform browsing
+  - but poor as a cross-episode vigor summary.
+- pre-walk standing on `bh3`:
+  - weak and unstable relation to walking vigor
+  - mixed pooled vs within-subject signs after better regime definitions.
+- dominance as the main emotion-axis target:
+  - repeatedly weak or null across motion and physiology.
+
+## 11) Clip-Viewing Results To Carry Forward
+
+For `front STb` low-animation clip-view motion:
+- `valence` is the strongest and cleanest descriptor
+- `liking` and `arousal` are also present
+- `familiarity` is informative but should be treated as an appraisal /
+  recognition variable rather than core affect
+- `dominance` remains weak
+
+The plain clip-view measure was more useful than the attempted normalizations:
+- `clipDynamicMedian` outperformed:
+  - `clipMinusBaseline`
+  - `clipMinusPre`
+
+Interpretation:
+- the sternum STb signal seems to capture a broad embodied engagement /
+  micro-adjustment process during clip viewing
+- the effect is not limited to a strict valence-only channel, but valence is
+  the cleanest single summary axis
+
+## 12) Physiology Comparison
+
+The physiology sweep showed two things:
+
+1. Many more physiological metrics are available than first used
+- `E4`:
+  - `EDA`, `HR`, `IBI`, `BVP`, `skin temperature`
+- `BH3`:
+  - `HR`, `breathing rate`, `RR`, `breathing amplitude`, respiration-derived
+    signals, ECG-derived interval series, confidence
+
+2. Availability / quality was generally not the limiting factor
+- most clip-window features had high coverage and adequate sample counts
+- including HRV-like interval metrics
+
+However, for clip `valence`, physiology remained weaker than front-STb motion.
+
+Best-supported physiology signals for clip valence:
+- `E4 BVP variability`
+- `E4 HR mean`
+- `BH3 breathing rate mean`
+- `E4 EDA variability`
+
+HRV-related interval metrics were available but did not become the main story.
+
+## 13) Statistical Interpretation
+
+The key inferential step was moving from pooled / centered correlations to
+mixed-effects models with a within-/between-subject decomposition of the
+rating variable.
+
+Preferred formulation:
+- `outcome_z ~ ratingWS_z + ratingBS_z + (1 + ratingWS_z | participant)`
+
+For front-STb clip motion versus `valence`, the within-subject effect survived
+this transition clearly, which makes the result materially stronger than a
+simple pooled scatter.
+
+Important nuance:
+- subject-level profiles are heterogeneous
+- many subjects show a positive high-vs-low valence difference
+- but the exact shape is not perfectly linear for everyone
+
+So the stable interpretation is:
+- there is a positive within-subject front-STb clip-motion effect
+- but it should not be oversold as one universal linear law with identical
+  subject-wise shape
+
+## 14) Figure Design Lessons
+
+The visually attractive figure type is not always the statistically clearest.
+
+What worked poorly:
+- pooled scatter as the main visual
+- rose plot for four nearly equal rating effects
+
+What worked better:
+- modality comparison rose / radar figures
+- subject-profile views for heterogeneity
+- mixed-model-based summary figures rather than pooled associations
+
+For the grant context, the current best visual direction is:
+- use radar / rose plots only for modality informativeness summaries
+- define the radius explicitly as absolute within-subject mixed-model beta
+- avoid directional interpretation unless the sign is central to the claim
+
+## 15) Current Bottom Line
+
+Current working bottom line from the EmoWear clip analysis:
+
+- motion is a useful channel, not just physiology noise
+- the useful clip-view signal is strongest on sternum `front STb`
+- the clip-view effect is stronger than the tested physiology summaries
+- the strongest descriptor target is `valence`, with support also for:
+  - `liking`
+  - `arousal`
+  - `familiarity`
+- the pre-walk-to-walk question remained comparatively weak and secondary
+
+If this project restarts later, the correct first lens is no longer:
+- "can any accelerometer do this?"
+
+It is:
+- "what exactly does sternum front-STb low-animation clip-view motion capture,
+   and how does that embodied signal relate to reported affect?"
+
+## 8) Overnight Progress Update
+
+### Browser Update
+- The EmoWear browser now selects trials by `exp` rather than `seq`.
+- Reason:
+  - `seq` is randomized across subjects,
+  - `exp` is the meaningful cross-subject stimulus identifier.
+- This makes it possible to compare traces from different subjects for the same stimulus directly in the browser.
+
+### Final Working Motion Definitions
+- `Dynamic magnitude` is now:
+  - `0.5 s` rolling per-axis standard deviation,
+  - combined as `sqrt(sd_x^2 + sd_y^2 + sd_z^2)`.
+- `Low-animation regime` is now:
+  - dynamic `< 40`,
+  - short high-motion interruptions `<= 0.1 s` are filled back in,
+  - valid low-animation runs must last at least `0.5 s`.
+- `Sustained walking regime` is now:
+  - dynamic `> 100`,
+  - short low-motion interruptions `<= 0.25 s` are filled back in,
+  - valid high-motion runs must last at least `1.0 s`.
+
+### Clip-Rating Survey
+- A survey pass was run across all subject ratings, aggregated by `exp`.
+- Ratings used:
+  - valence
+  - arousal
+  - dominance
+  - liking
+  - familiarity
+- Main output:
+  - clips do show structured clustering in perceived profile space.
+- Interpretation:
+  - the stimuli are not all perceived as one undifferentiated cloud,
+  - but agreement is not perfect either, because across-subject SDs remain nontrivial for many clips.
+- Main output folder:
+  - `outputs/figures/emowear_clip_rating_survey_20260412_201614`
+
+### Motion-Versus-Rating Survey
+- A second survey pass joined regime-defined motion features to subject survey ratings.
+- Motion features:
+  - `preDynamicMedian`
+    - low-animation pre-walk motion in the `5 s` before `walkB`
+  - `walkDynamicMedian`
+    - sustained-walking motion inside `walkB -> walkFinish`
+- Ratings tested:
+  - valence
+  - dominance
+
+#### Episode-Level Results
+- `preDynamicMedian` vs `valence`:
+  - essentially null
+  - Pearson `r = -0.025`
+- `preDynamicMedian` vs `dominance`:
+  - essentially null
+  - Pearson `r = 0.019`
+- `walkDynamicMedian` vs `valence`:
+  - weak positive pooled association
+  - Pearson `r = 0.083`
+  - within-subject-centered association weakens to `r = 0.042`
+- `walkDynamicMedian` vs `dominance`:
+  - weak positive pooled association
+  - Pearson `r = 0.053`
+  - within-subject-centered association disappears and slightly changes sign
+
+#### Clip-Mean Results
+- Averaging motion and ratings by `exp` did not produce strong clip-level associations.
+- The only near-signal was:
+  - `mean_preDynamicMedian` vs `mean_dominance`
+  - Pearson `r = -0.309`, `p = 0.059`
+- Current interpretation:
+  - motion-versus-rating effects are weak,
+  - and they do not yet look robust enough to treat as settled findings.
+
+### Current Takeaway
+- The browser is now set up for proper stimulus-matched visual comparison across subjects.
+- The clip survey supports continuing with stimulus-level structure rather than treating clips as interchangeable.
+- The motion-versus-rating survey does not yet show convincing strong links between:
+  - pre-walk low-animation motion and valence/dominance,
+  - or walking vigor and valence/dominance.
+- The next sensible step is likely more stimulus-aware inspection:
+  - compare the same `exp` across subjects in the browser,
+  - then ask whether visually distinct stimulus families produce distinct motion regimes.
+
+### Clip-Viewing Low-Animation Follow-Up
+- A follow-up survey replaced the pre-walk window with:
+  - `vidB -> surveyB`
+  - low-animation frames only
+  - same low-animation definition as above
+- Output folder:
+  - `outputs/figures/emowear_clipview_motion_vs_ratings_20260412_204720`
+
+#### Results
+- Mean retained low-animation fraction inside clip viewing:
+  - `0.981`
+- `clipDynamicMedian` vs `valence`:
+  - pooled Pearson `r = 0.045`, `p = 0.059`
+  - within-subject-centered `r = 0.062`, `p = 0.008`
+- `clipDynamicMedian` vs `dominance`:
+  - pooled Pearson `r = -0.008`, `p = 0.752`
+  - within-subject-centered `r = -0.058`, `p = 0.014`
+- Clip-mean correlations by `exp`:
+  - `mean_clipDynamicMedian` vs `mean_valence`:
+    - Pearson `r = 0.218`, `p = 0.188`
+  - `mean_clipDynamicMedian` vs `mean_dominance`:
+    - Pearson `r = -0.034`, `p = 0.839`
+
+#### Interpretation
+- Clip-viewing is, as expected, overwhelmingly low-animation under the current thresholding.
+- Compared with the pre-walk window:
+  - the forward-looking anticipatory component is reduced,
+  - but the rating associations are still weak.
+- The only non-null-looking result so far is a very small within-subject positive association between clip-view low-animation motion and valence.
+
+### Front STb Follow-Up
+- Because the Simos/Claude reports used `Front STb` rather than `BH3`, a sensor-matched follow-up was run on:
+  - `front.acc`
+  - `x1_lis2dw12`, `y1_lis2dw12`, `z1_lis2dw12`
+- To keep STb processing comparable to the earlier BH3 regime workflow, the raw STb stream was first decimated `10x` before:
+  - `0.5 s` rolling per-axis SD magnitude
+  - low-animation and sustained-walking mask construction
+
+#### STb Phase Scale Check
+- Sampled pooled framewise phase summary showed:
+  - `video` median `8.50`
+  - `video` `p99 = 43.45`
+  - `post` `p95 = 39.62`
+  - `walking` median `200.93`
+- This supported a first-pass STb regime definition of:
+  - low-animation `< 40`
+  - sustained walking `> 100`
+
+#### STb Regime Survey Results
+- Output folder:
+  - `outputs/figures/emowear_frontstb_regime_surveys_20260413_090502`
+- Episode count:
+  - `n = 1681`
+- Main results:
+  - `clipDynamicMedian` vs `valence`:
+    - pooled Pearson `r = 0.193`
+    - within-subject `r = 0.201`
+  - `clipMinusPre` vs `valence`:
+    - pooled Pearson `r = 0.159`
+    - within-subject `r = 0.157`
+  - `walkDynamicMedian` vs `valence`:
+    - pooled Pearson `r = 0.063`
+    - within-subject `r = 0.055`
+  - `dominance` remained near-null across these STb regime summaries
+
+#### Interpretation
+- Under our own regime definitions, the front STb sensor does carry a substantially clearer positive valence signal than BH3 did.
+- The strongest result is not locomotion; it is low-animation clip-view motion on the front sternum sensor.
+- That moves our findings closer to the Simos/Claude direction, but still with a more explicit regime definition than their broad AI-phase analysis.
 1. inspect MAT schema
 2. inspect `meta.csv`
 3. build one manifest

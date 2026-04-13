@@ -2,6 +2,123 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-04-12
+
+### EmoWear: Front STb Pivot And Clip-Viewing Result
+- The accelerometer work initially used `bh3.acc` because it was the simplest
+  clean signal source for browser and regime development.
+- Later inspection of the Simos/Claude materials clarified that their main
+  positive result used the sternum-mounted `front STb` accelerometer, not BH3.
+- We therefore switched the main clip analysis to:
+  - `signals.front.acc`
+  - first accelerometer triad `x1_lis2dw12 / y1_lis2dw12 / z1_lis2dw12`
+  - 10x decimation before motion-envelope estimation
+
+### Final Working Motion Definition For Clip Analyses
+- The final clip-view motion metric is:
+  - `0.5 s` rolling per-axis standard deviation,
+  - combined as `sqrt(sd_x^2 + sd_y^2 + sd_z^2)`,
+  - summarized with the median over low-animation clip frames.
+- This replaced:
+  - whole-record median-centered dynamic magnitude,
+  - and raw-amplitude clip summaries,
+  - both of which proved less trustworthy for inference.
+
+### Regime Definitions Consolidated
+- Low-animation:
+  - threshold `< 40`
+  - fill high gaps `<= 0.1 s`
+  - minimum low bout `0.5 s`
+- Sustained walking:
+  - threshold `> 100`
+  - fill low gaps `<= 0.25 s`
+  - minimum walking bout `1.0 s`
+
+### Front STb Clip-Viewing Findings
+- The clearest result from the clip-viewing phase is:
+  - `front STb` low-animation clip motion shows a positive within-subject
+    relation to `valence`.
+- The effect also extended to:
+  - `liking`
+  - `arousal`
+  - `familiarity`
+- `dominance` remained weak.
+
+### Physiology Comparison Expanded
+- Added broader clip-window physiology sweep including:
+  - `E4`: `EDA`, `HR`, `IBI`, `BVP`, `skin temperature`
+  - `BH3`: `HR`, `breathing rate`, `RR`, breathing amplitude / respiration
+- Quality / availability was generally good across clip windows, including
+  interval-based metrics.
+- Nevertheless, front-STb clip motion remained the strongest valence-related
+  feature in the tested set.
+
+### Mixed-Effects Transition
+- The result was re-evaluated with within-/between-subject mixed-effects
+  models rather than relying on pooled or centered correlations alone.
+- Preferred model family:
+  - `outcome_z ~ ratingWS_z + ratingBS_z + (1 + ratingWS_z | participant)`
+- The front-STb clip-motion effect survived this step clearly, which upgrades
+  confidence relative to the earlier exploratory plots.
+
+### Visual Summary Direction
+- Rejected:
+  - pooled scatters as primary figures,
+  - rose plots for nearly equal rating-wise effects.
+- Kept as viable:
+  - modality-comparison radar / rose figures using absolute mixed-model betas,
+  - subject-profile figures for heterogeneity,
+  - plain mixed-model coefficient plots for exact reading.
+
+### EmoWear Browser: Stimulus-Matched Selection
+- Updated `CODE/PLOTTING/gui/launchEmoWearAccelBrowser.m` so the browser selects trials by `exp` rather than `seq`.
+- Reason:
+  - `seq` is randomized across participants in EmoWear,
+  - `exp` is the meaningful cross-subject stimulus key.
+- Validation:
+  - MATLAB smoke test passed:
+    - `EMOWEAR_BROWSER_EXP_SELECTOR_SMOKE_OK`
+
+### EmoWear Clip-Rating Survey
+- Added:
+  - `scripts/run_emowear_clip_rating_survey.m`
+- Purpose:
+  - aggregate subject survey responses by `exp`,
+  - summarize mean and across-subject spread for:
+    - valence
+    - arousal
+    - dominance
+    - liking
+    - familiarity
+  - cluster clips by their perceived profile.
+- Main outputs:
+  - `outputs/figures/emowear_clip_rating_survey_20260412_201614/clip_rating_cluster_heatmap.png`
+  - `outputs/figures/emowear_clip_rating_survey_20260412_201614/clip_rating_agreement_summary.png`
+- Main interpretation:
+  - clips show structured perceived-profile clustering,
+  - but agreement is not perfect, so subject-level variability remains relevant.
+
+### EmoWear Motion-Versus-Rating Survey
+- Added:
+  - `scripts/run_emowear_motion_vs_ratings_survey.m`
+- Purpose:
+  - join regime-defined motion features to survey ratings and test:
+    - pre-walk low-animation motion vs valence/dominance
+    - sustained-walking motion vs valence/dominance
+- Motion definitions used:
+  - pre-walk:
+    - `5 s` before `walkB`,
+    - low-animation subset from dynamic `< 40`
+  - walking:
+    - sustained-walking subset from dynamic `> 100` inside `walkB -> walkFinish`
+- Main result:
+  - pre-walk motion showed essentially null associations with valence and dominance,
+  - walking motion showed only weak pooled positive associations with valence and dominance,
+  - these weakened or disappeared under within-subject centering.
+- Main outputs:
+  - `outputs/figures/emowear_motion_vs_ratings_20260412_201615/motion_rating_stats.csv`
+  - `outputs/figures/emowear_motion_vs_ratings_20260412_201615/clip_mean_motion_rating_stats.csv`
+
 ## 2026-03-20
 
 ### Auxiliary Modality Visualization And Integration Memo

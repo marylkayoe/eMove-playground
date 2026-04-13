@@ -104,7 +104,7 @@ function H = launchEmoWearAccelBrowser(varargin)
         'Callback', @onControlsChanged);
 
     rowY = rowY - rowGap;
-    uicontrol(f, 'Style', 'text', 'String', 'Sequence', ...
+    uicontrol(f, 'Style', 'text', 'String', 'Stimulus (exp)', ...
         'HorizontalAlignment', 'left', 'BackgroundColor', 'w', ...
         'Position', [leftX rowY 120 20]);
     hSequence = uicontrol(f, 'Style', 'popupmenu', ...
@@ -143,15 +143,19 @@ function H = launchEmoWearAccelBrowser(varargin)
     rowY = rowY - rowGap - 4;
     hRefresh = uicontrol(f, 'Style', 'pushbutton', ...
         'String', 'Refresh', ...
-        'Position', [leftX rowY 90 28], ...
+        'Position', [leftX rowY 68 28], ...
         'Callback', @onRefresh);
+    hShowClip = uicontrol(f, 'Style', 'pushbutton', ...
+        'String', 'Clip', ...
+        'Position', [leftX+74 rowY 68 28], ...
+        'Callback', @onShowClipOnly);
     hShowPrewalk = uicontrol(f, 'Style', 'pushbutton', ...
         'String', 'Pre-walk', ...
-        'Position', [leftX+98 rowY 90 28], ...
+        'Position', [leftX+148 rowY 68 28], ...
         'Callback', @onShowPrewalkOnly);
     hShowWalking = uicontrol(f, 'Style', 'pushbutton', ...
         'String', 'Walk', ...
-        'Position', [leftX+196 rowY 90 28], ...
+        'Position', [leftX+222 rowY 68 28], ...
         'Callback', @onShowWalkingOnly);
 
     hStatus = uicontrol(f, 'Style', 'text', ...
@@ -213,6 +217,7 @@ function H = launchEmoWearAccelBrowser(varargin)
     S.hWindow = hWindow;
     S.hPrewalk = hPrewalk;
     S.hRefresh = hRefresh;
+    S.hShowClip = hShowClip;
     S.hShowPrewalk = hShowPrewalk;
     S.hShowWalking = hShowWalking;
     S.hStatus = hStatus;
@@ -242,12 +247,13 @@ function H = launchEmoWearAccelBrowser(varargin)
         if isempty(devices)
             devices = {' '};
         end
+        preferredDevice = localResolvePreferredDevice(devices, prevDevice);
         set(S.hDevice, 'String', devices, ...
-            'Value', localResolvePopupValue(devices, prevDevice, 1));
+            'Value', localResolvePopupValue(devices, preferredDevice, 1));
 
         phase2 = participant.markers.phase2;
-        if istable(phase2) && ismember('seq', phase2.Properties.VariableNames)
-            seqLabels = [{'ALL'}; cellstr(string(phase2.seq))];
+        if istable(phase2) && ismember('exp', phase2.Properties.VariableNames)
+            seqLabels = [{'ALL'}; cellstr("exp " + string(phase2.exp))];
         else
             seqLabels = {'ALL'};
         end
@@ -382,6 +388,65 @@ function H = launchEmoWearAccelBrowser(varargin)
         hold(S.ax, 'off');
         S.lastAxisLimits = axis(S.ax);
         set(S.hStatus, 'String', sprintf('Showing %s for seq %s', windowLabel, seqLabel), ...
+            'ForegroundColor', [0.2 0.2 0.2]);
+        guidata(f, S);
+    end
+
+    function onShowClipOnly(~, ~)
+        S = guidata(f);
+        participant = S.cache.currentParticipant;
+        deviceName = localSelectedString(S.hDevice);
+        signalName = localSelectedString(S.hSignal);
+        seqLabel = localSelectedString(S.hSequence);
+        plotMode = localSelectedString(S.hPlotMode);
+        phase2 = participant.markers.phase2;
+        row = localResolvePhase2Row(phase2, seqLabel);
+        if isempty(row)
+            set(S.hStatus, 'String', 'Select one sequence to show clip viewing.', ...
+                'ForegroundColor', [0.75 0.25 0.2]);
+            return;
+        end
+
+        signalStruct = participant.signals.(deviceName);
+        T = signalStruct.(signalName);
+        [timeVec, yData, seriesNames, primaryLabel, regimeMeta] = localBuildPlotData(T, plotMode);
+        tStart = double(row.vidB);
+        tEnd = double(row.surveyB);
+        if ~isfinite(tStart) || ~isfinite(tEnd) || tEnd <= tStart
+            set(S.hStatus, 'String', 'vidB / surveyB markers are not usable for this sequence.', ...
+                'ForegroundColor', [0.75 0.25 0.2]);
+            return;
+        end
+
+        keep = timeVec >= tStart & timeVec <= tEnd;
+        if ~any(keep)
+            set(S.hStatus, 'String', 'No samples fell inside vidB to surveyB.', ...
+                'ForegroundColor', [0.75 0.25 0.2]);
+            return;
+        end
+
+        localPrepareAxes(S.ax);
+        hold(S.ax, 'on');
+        colors = lines(size(yData, 2));
+        for iLine = 1:size(yData, 2)
+            plot(S.ax, timeVec(keep), yData(keep, iLine), 'LineWidth', 1.1, ...
+                'Color', colors(iLine, :), 'DisplayName', seriesNames{iLine});
+        end
+        xlim(S.ax, [tStart tEnd]);
+        ylabel(S.ax, primaryLabel);
+        xlabel(S.ax, 'Time (s)');
+        title(S.ax, sprintf('%s | %s.%s | vidB to surveyB', participant.id, deviceName, signalName), ...
+            'Interpreter', 'none');
+        grid(S.ax, 'on');
+        regimeSubset = localSubsetRegimeMeta(regimeMeta, keep);
+        localOverlayRegimes(S.ax, timeVec(keep), regimeSubset);
+        localOverlayMarkers(S.ax, participant.markers, row, seqLabel);
+        if size(yData, 2) > 1
+            legend(S.ax, 'Location', 'best');
+        end
+        hold(S.ax, 'off');
+        S.lastAxisLimits = axis(S.ax);
+        set(S.hStatus, 'String', sprintf('Showing clip-view for seq %s', seqLabel), ...
             'ForegroundColor', [0.2 0.2 0.2]);
         guidata(f, S);
     end
@@ -533,11 +598,14 @@ end
 
 function row = localResolvePhase2Row(phase2, seqLabel)
     row = [];
-    if ~istable(phase2) || strcmpi(seqLabel, 'ALL') || ~ismember('seq', phase2.Properties.VariableNames)
+    if ~istable(phase2) || strcmpi(seqLabel, 'ALL') || ~ismember('exp', phase2.Properties.VariableNames)
         return;
     end
-    seqNum = str2double(seqLabel);
-    idx = find(double(phase2.seq) == seqNum, 1, 'first');
+    expNum = sscanf(seqLabel, 'exp %f', 1);
+    if isempty(expNum) || ~isfinite(expNum)
+        expNum = str2double(seqLabel);
+    end
+    idx = find(double(phase2.exp) == expNum, 1, 'first');
     if ~isempty(idx)
         row = phase2(idx, :);
     end
@@ -960,6 +1028,23 @@ function idx = localResolvePopupValue(options, preferred, fallback)
     idx = find(strcmp(opts, char(string(preferred))), 1, 'first');
     if isempty(idx)
         idx = min(max(1, fallback), numel(opts));
+    end
+end
+
+function preferred = localResolvePreferredDevice(deviceNames, previousDevice)
+    preferred = char(string(previousDevice));
+    opts = cellstr(string(deviceNames));
+    if any(strcmp(opts, preferred))
+        return;
+    end
+    if any(strcmp(opts, 'front'))
+        preferred = 'front';
+    elseif any(strcmp(opts, 'bh3'))
+        preferred = 'bh3';
+    elseif ~isempty(opts)
+        preferred = opts{1};
+    else
+        preferred = '';
     end
 end
 

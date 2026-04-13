@@ -1,14 +1,13 @@
 % run_grant_clip_descriptor_rose.m
 %
 % Build one radar / rose-style summary plot for four clip descriptors
-% (valence, arousal, liking, familiarity) across five selected modalities:
+% (valence, arousal, liking, familiarity) across distinct signal domains:
 %   - Front STb clip motion
-%   - E4 BVP variability
-%   - E4 HR mean
 %   - BH3 HR mean
+%   - BH3 HRV (RR RMSSD)
+%   - E4 EDA mean amplitude
+%   - E4 SCR rate
 %   - BH3 breathing rate mean
-%   - E4 EDA variability
-%   - E4 IBI mean
 %
 % Effect size is the absolute within-subject mixed-model beta from:
 %   outcomeZ ~ ratingWSZ + ratingBSZ + (1 + ratingWSZ | participantID)
@@ -58,12 +57,10 @@ for i = 1:numel(ids)
         continue;
     end
 
-    e4bvp = localGetValueTrace(S.signals, 'e4', 'bvp');
-    e4hr = localGetValueTrace(S.signals, 'e4', 'hr');
-    e4ibi = localGetValueTrace(S.signals, 'e4', 'ibi');
     e4eda = localGetValueTrace(S.signals, 'e4', 'eda');
     bh3br = localGetValueTrace(S.signals, 'bh3', 'br');
     bh3hr = localGetValueTrace(S.signals, 'bh3', 'hr');
+    bh3rr = localGetValueTrace(S.signals, 'bh3', 'rr');
 
     participantRows = [];
     phase2 = M.markers.phase2;
@@ -86,12 +83,11 @@ for i = 1:numel(ids)
         else
             row.front_clip_motion = NaN;
         end
-        [row.e4_bvp_std, ~] = localWindowStdN(e4bvp, vidB, surveyB);
-        [row.e4_hr_mean, ~, ~] = localWindowMeanStdN(e4hr, vidB, surveyB);
-        [row.e4_ibi_mean, ~, ~, ~] = localWindowIntervalFeatures(e4ibi, vidB, surveyB);
         [row.bh3_hr_mean, ~, ~] = localWindowMeanStdN(bh3hr, vidB, surveyB);
+        [~, ~, row.bh3_rr_rmssd, ~] = localWindowIntervalFeatures(bh3rr, vidB, surveyB);
         [row.bh3_br_mean, ~, ~] = localWindowMeanStdN(bh3br, vidB, surveyB);
-        [~, row.e4_eda_std, ~] = localWindowMeanStdN(e4eda, vidB, surveyB);
+        [row.e4_eda_mean, ~, ~] = localWindowMeanStdN(e4eda, vidB, surveyB);
+        row.e4_scr_rate = localWindowSCRRate(e4eda, vidB, surveyB);
 
         participantRows = [participantRows; row]; %#ok<AGROW>
     end
@@ -107,12 +103,11 @@ writetable(J, fullfile(outDir, 'clip_descriptor_joined.csv'));
 
 features = { ...
     struct('field','front_clip_motion','label','Front STb motion'), ...
-    struct('field','e4_bvp_std','label','E4 BVP variability'), ...
-    struct('field','e4_hr_mean','label','E4 HR mean'), ...
-    struct('field','bh3_br_mean','label','BH3 breathing rate'), ...
     struct('field','bh3_hr_mean','label','BH3 HR mean'), ...
-    struct('field','e4_eda_std','label','E4 EDA variability'), ...
-    struct('field','e4_ibi_mean','label','E4 IBI mean') ...
+    struct('field','bh3_rr_rmssd','label','BH3 HRV (RMSSD)'), ...
+    struct('field','e4_eda_mean','label','E4 EDA mean amplitude'), ...
+    struct('field','e4_scr_rate','label','E4 SCR rate'), ...
+    struct('field','bh3_br_mean','label','BH3 breathing rate') ...
     };
 ratings = {'valence','arousal','liking','familiarity'};
 
@@ -169,7 +164,7 @@ for i = 1:nFeat
 end
 
 % Radial labels on the BH3 HR spoke, where there is more open space.
-hrSpokeIdx = 5;
+hrSpokeIdx = 2;
 hrTheta = theta(hrSpokeIdx);
 for tv = tickVals
     rr = (tv - rMin) / rSpan;
@@ -181,7 +176,7 @@ end
 
 % Spoke labels
 labelRadius = 1.12;
-labelText = ["Front STb motion", "E4 BVP variability", "E4 HR mean", "BH3 breathing rate", "BH3 HR mean", "E4 EDA variability", "E4 IBI mean"];
+labelText = ["Front STb motion", "BH3 HR mean", "BH3 HRV (RMSSD)", "E4 EDA mean amplitude", "E4 SCR rate", "BH3 breathing rate"];
 for i = 1:nFeat
     [xl, yl] = pol2cart(theta(i), labelRadius);
     ha = 'center';
@@ -236,7 +231,6 @@ annotation(fig, 'textbox', [0.22 0.03 0.56 0.06], ...
     'FontSize', 12, 'Color', [0.28 0.28 0.28]);
 
 exportgraphics(fig, fullfile(outDir, 'grant_clip_descriptor_rose.png'), 'Resolution', 240);
-savefig(fig, fullfile(outDir, 'grant_clip_descriptor_rose.fig'));
 
 disp(summary);
 fprintf('Saved outputs to:\n%s\n', outDir);
@@ -349,6 +343,46 @@ if n >= 2
         rmssd = sqrt(mean(d.^2, 'omitnan'));
     end
 end
+end
+
+function scrRate = localWindowSCRRate(trace, tStart, tEnd)
+scrRate = NaN;
+if isempty(trace.timestamp)
+    return;
+end
+mask = trace.timestamp >= tStart & trace.timestamp < tEnd & isfinite(trace.value);
+if nnz(mask) < 8
+    return;
+end
+t = double(trace.timestamp(mask));
+x = double(trace.value(mask));
+if numel(t) < 8 || t(end) <= t(1)
+    return;
+end
+dt = diff(t);
+dt = dt(isfinite(dt) & dt > 0);
+if isempty(dt)
+    return;
+end
+sampleRate = 1 / median(dt, 'omitnan');
+baselineWin = max(5, round(4 * sampleRate));
+if mod(baselineWin, 2) == 0
+    baselineWin = baselineWin + 1;
+end
+xTonic = movmedian(x, baselineWin, 'omitnan', 'Endpoints', 'shrink');
+xPhasic = x - xTonic;
+minProm = max(0.02, 0.5 * std(xPhasic, 0, 'omitnan'));
+minDist = max(1, round(1.0 * sampleRate));
+try
+    [~, locs] = findpeaks(xPhasic, 'MinPeakProminence', minProm, 'MinPeakDistance', minDist);
+catch
+    locs = [];
+end
+durationSec = t(end) - t(1);
+if durationSec <= 0
+    return;
+end
+scrRate = numel(locs) / durationSec * 60;
 end
 
 function z = localZ(x)

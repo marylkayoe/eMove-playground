@@ -984,3 +984,14 @@ This document tracks project state, implementation decisions, and validation run
 - The goal of the cleanup is not to erase analysis history from the docs, but to
   reduce directory clutter and keep only the latest representative outputs for
   each panel type.
+
+### 11) Non-Negotiable Figure Readability Rule
+- It is essential that final figures contain no occlusions.
+- This includes:
+  - legends overlapping titles,
+  - titles overlapping plotting areas,
+  - axis labels colliding with legends or captions,
+  - numeric annotations sitting on top of data points,
+  - and spoke / radial labels colliding in radar-style plots.
+- Any figure with label occlusion should be treated as unfinished, even if the
+  underlying statistics are correct.

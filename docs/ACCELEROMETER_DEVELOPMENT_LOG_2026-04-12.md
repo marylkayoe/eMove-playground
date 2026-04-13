@@ -1133,3 +1133,11 @@ Before that clip-quality analysis starts, we should preserve:
 - and the distinction between:
   - dynamic-envelope summaries,
   - raw waveform summaries.
+
+### Figure Quality Rule
+
+- It is essential that presentation figures have no text or marker occlusions.
+- If a legend, title, axis label, numeric label, or radar-spoke label overlaps
+  anything else, the figure is not ready.
+- This became a concrete issue during the grant-style figure iteration and
+  should be treated as a hard quality gate, not a cosmetic nicety.

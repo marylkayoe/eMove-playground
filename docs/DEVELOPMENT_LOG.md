@@ -2,6 +2,40 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-05-02
+
+### Workspace Cleanup Rule: Remove Hanging Git Temp Packs
+- A filesystem failure during baseline-disruption exploration revealed that the
+  repository had accumulated a very large number of stale git temp pack files
+  under:
+  - `.git/objects/pack/tmp_pack_*`
+- These are not analysis outputs and should not be treated as valuable project
+  artifacts.
+- Observed failure mode:
+  - the temp packs consumed on the order of `~118 GiB`,
+  - reduced free space to `~200 MiB`,
+  - and caused normal work to fail, including:
+    - MATLAB result export,
+    - shell here-doc creation,
+    - and even small code edits.
+
+### Cleanup Decision
+- Future workspace-cleanup passes should explicitly check for and remove:
+  - stale `.git/objects/pack/tmp_pack_*` files
+- This is separate from the usual cleanup of:
+  - superseded figure exports,
+  - exploratory QC scratch folders,
+  - and large temporary output trees.
+
+### Practical Interpretation
+- When the workspace suddenly behaves pathologically despite small code changes,
+  it is worth checking:
+  - free disk space,
+  - `outputs/qc`,
+  - and especially `.git/objects/pack`
+- In this case, removing the stale git temp packs restored normal free space
+  immediately and was the highest-yield cleanup action.
+
 ## 2026-04-12
 
 ### EmoWear: Front STb Pivot And Clip-Viewing Result

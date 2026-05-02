@@ -1,3 +1,0 @@
-motionMetric,ratingMetric,nClips,pearson_r,pearson_p,spearman_rho,spearman_p
-mean_clipDynamicMedian,mean_valence,38,0.218235633225956,0.188077867081994,0.181748550169603,0.27370504007744
-mean_clipDynamicMedian,mean_dominance,38,-0.0339965438216202,0.839426950274133,-0.00711237553342816,0.966546795132822

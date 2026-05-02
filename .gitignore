@@ -5,3 +5,22 @@ MATLABDATA/
 *.asv
 eMove-WS2.mat
 
+
+# Python virtual environments
+.venv/
+.venv_*/
+venv/
+env/
+
+# Local plotting/config cache
+.mplconfig/
+
+# MATLAB data files
+*.mat
+
+# Generated analysis outputs
+outputs/
+results/
+cache/
+tmp/
+temp/

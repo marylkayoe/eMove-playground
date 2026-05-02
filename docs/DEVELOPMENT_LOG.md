@@ -4,6 +4,161 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-05-02
 
+### Baseline Disruption: Detector Consolidated After Threshold Sweep
+- The baseline-disruption branch advanced beyond the original liberal
+  `baselineStim` first pass.
+- The first version overcalled ordinary sway-like threshold crossings and was
+  not sparse enough to support an event-like interpretation.
+- A stricter detector was retained after a focused threshold sweep.
+
+### Current Working Detector
+- Main interval:
+  - explicit `BASELINE` stimulus period (`intervalMode='baselineStim'`)
+- Current preferred signal:
+  - `uTorso` marker group only (`signalMarkerMode='uTorso'`)
+- Stable reference:
+  - smooth the signal with `1.0 s` moving median
+  - estimate quiet-state center/scale from the lower `60%` of the signal
+  - use median + MAD-derived robust scale
+- Current retained settings:
+  - `eventZThreshold=4.5`
+  - `peakZThreshold=6.0`
+  - `minPeakProminenceZ=2.5`
+  - `mergeGapSec=0.35`
+  - `minEventDurSec=0.40`
+
+### What The Sweep Showed
+- Raising peak threshold alone did very little.
+- Adding a within-run prominence criterion was the first change that
+  materially sparsified the detector.
+- Tightening the span threshold from `4.0 z` to `4.5 z` further reduced the
+  heavy-count tail.
+- Retained sweep summary:
+  - `sweepD`
+  - median candidate rate `0.43/min`
+  - median candidate count `1`
+  - zero-event subjects `8`
+  - subjects with `>=3` candidates `7`
+  - max retained candidate count `4`
+
+### Signal Choice Status
+- `HEAD` alone looked less sparse and likely noisier.
+- Pooled upper-body was workable but still heavier-tailed.
+- `UTORSO` preserved the sparse regime while slightly reducing heavier-count
+  subjects, so it became the current default signal.
+
+### Interpretation Boundary
+- The stricter detector supports a cautious claim that some `BASELINE`
+  intervals contain intermittent transient excursions.
+- It does not yet support a strong claim that these are definitively unitary
+  disruption episodes or that they have a settled psychological meaning.
+- Event timing under the retained `uTorso` detector did not show a clear
+  cohort-level increase toward the end of `BASELINE`.
+- Event-aligned morphology showed moderate shared bump-like structure near the
+  peak, but not a highly stereotyped waveform across subjects.
+
+### Next Recommended Detector Change
+- Do not keep tightening only by higher amplitude thresholds.
+- If more selectivity is needed, add one structural criterion instead:
+  - refractory interval between accepted events
+  - pre/post quiet-window requirement
+  - onset-slope or impulse-shape filter
+  - optional cross-channel confirmation after the single-channel assay is
+    stable
+
+### Durable Handoff Note
+- See:
+  - [HANDOFF_BASELINE_DISRUPTION_2026-05-02.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/HANDOFF_BASELINE_DISRUPTION_2026-05-02.md)
+
+### Baseline Disruption: Structural Follow-Up Did Not Rescue A Strong Event Story
+- The next pass extended `scripts/explore_long_baseline_disruption_events.m`
+  rather than forking a separate detector.
+- Changes added:
+  - explicit `signalMarkerMode` selection inside the script
+  - peak-timing fields
+  - peak-prominence filtering
+  - refractory filtering
+  - optional quiet-window gating
+  - timing and morphology summary figures
+- Important negative result:
+  - adding explicit quiet pre/post windows was too harsh and collapsed the
+    assay to near-zero retained events.
+- Mild structural filtering that did survive:
+  - keep the stricter `uTorso` threshold set
+  - add a short refractory interval
+  - avoid making quiet-window gating the default retained criterion
+- Interpretation:
+  - this did not upgrade the old event story into a clearly convincing
+    phasic-disruption assay
+  - it mainly clarified which structural filters were too destructive
+
+### Baseline LAR Exit Assay Reframed The Question More Productively
+- The more useful reformulation was:
+  - not "are there intrinsic phasic pulses inside baseline?"
+  - but "are there brief exits from the low-animation regime during
+    baseline?"
+- Added:
+  - [explore_baseline_lar_exits.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/explore_baseline_lar_exits.m)
+  - [plot_lar_exit_probability_over_time.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/plot_lar_exit_probability_over_time.m)
+- Working `uTorso` LAR-exit definition:
+  - speed threshold `< 35 mm/s`
+  - minimum immobile bout `1.0 s`
+  - retain only mobile runs bracketed by immobile bouts
+  - brief-exit duration range `0.15-4.0 s`
+  - minimum exit peak speed `40 mm/s`
+- Working outputs:
+  - `outputs/figures/baseline_lar_exit_baselineStim_20260502_202522425_uTorso_working`
+- Main descriptive result:
+  - retained exits were sparse but real
+  - overall timing showed only a mild late skew, not a strong monotonic rise
+  - this was more aligned with visual intuition than the old event detector,
+    but still weaker than hoped if framed as a discrete-event hazard story
+
+### Baseline Instability Assay Became The Best Match To The Visual Gut Feeling
+- The strongest conceptual pivot of the session was:
+  - the traces may not be expressing more discrete events
+  - they may be expressing a gradual loss of local stability / stationarity
+- Added:
+  - [explore_baseline_instability.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/explore_baseline_instability.m)
+- This pass used rolling `10 s` windows stepped by `2 s` on `uTorso` and
+  tracked:
+  - speed SD
+  - speed MAD
+  - speed-diff MAD
+  - local position MAD
+  - position drift from an early-trial reference
+- Working outputs:
+  - `outputs/figures/baseline_instability_baselineStim_20260502_204538015_uTorso_working`
+- Cohort-level late-minus-early medians were all positive:
+  - speed SD `+0.42`
+  - speed MAD `+0.10`
+  - speed-diff MAD `+0.006`
+  - local position MAD `+0.10`
+  - position drift `+3.93 mm`
+- Direction counts also leaned the same way:
+  - speed SD `16` positive vs `12` negative
+  - speed MAD `17` positive vs `11` negative
+  - speed-diff MAD `19` positive vs `9` negative
+  - local position MAD `19` positive vs `9` negative
+  - position drift `23` positive vs `5` negative
+- Interpretation boundary:
+  - this is still not a dramatic effect
+  - but it is the first baseline-focused analysis in this branch that matches
+    the user's visual intuition in a reasonably coherent way
+  - the more defensible emerging story is mild late-trial nonstationarity /
+    instability rather than a clean buildup of discrete phasic events
+
+### Recommended Next Step After This Session
+- If this branch is continued, the next methodological step should be:
+  - compare instability curves across `HEAD`, `uTorso`, `lTorso`, and pooled
+    upper body
+  - then decide whether to build:
+    - a composite instability score
+    - or a formal time-trend model on the rolling metrics
+- At this point, further energy should probably go into:
+  - stability / nonstationarity assays
+  - not more threshold tuning of sparse-event detectors
+
 ### Workspace Cleanup Rule: Remove Hanging Git Temp Packs
 - A filesystem failure during baseline-disruption exploration revealed that the
   repository had accumulated a very large number of stale git temp pack files

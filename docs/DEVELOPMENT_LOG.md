@@ -2,6 +2,54 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-05-03
+
+### Repository Safety Cleanup And Agent Workflow Reset
+
+- A repository-maintenance pass was completed after Codex Desktop triggered
+  runaway Git pack growth while large generated and local-only files were still
+  present inside the repo tree.
+- The immediate failure mode was repository hygiene under an aggressive desktop
+  tool, not a MATLAB-analysis bug.
+- After cleanup, `.git` returned to a sane working size.
+
+### Local-Only Outputs Moved Out Of The Repo
+
+- `outputs/` was moved out of the repository to local data storage.
+- `legacy_resultCellSingles.mat` was also moved out of the repository to local
+  data storage.
+- This should be treated as a repository-safety correction, not as a change in
+  analysis logic or scientific interpretation.
+
+### Scratch Workflow Is Now Required For Exploratory Agent Output
+
+- `scratch/` is now the required location for exploratory agent-generated files.
+- The expected pattern is:
+  - `scratch/taskName_YYYYMMDD/`
+- Temporary figures, logs, CSVs, helper scripts, and intermediate exports
+  should go there first unless the user explicitly asks for promotion into a
+  tracked location.
+
+### AGENTS.md Now Defines The Maintenance Contract
+
+- `AGENTS.md` now records the repository rules for:
+  - Git safety,
+  - MATLAB-first work,
+  - figure-layout/readability policy,
+  - scratch-only exploratory workflow,
+  - standard maintenance/document/commit/push procedures.
+- The purpose is to make future agent behavior predictable and to reduce the
+  risk of repeating Git bloat or export sprawl.
+
+### Post-Cleanup Validation
+
+- Codex Desktop passed a small scratch-workflow test after cleanup.
+- The test created a tiny Markdown artifact under `scratch/`, verified repo
+  status, and then removed only the requested scratch test file.
+- Practical result:
+  - the repo can support small exploratory agent work again without mixing
+    temporary files into tracked areas.
+
 ## 2026-05-02
 
 ### Baseline Disruption: Detector Consolidated After Threshold Sweep

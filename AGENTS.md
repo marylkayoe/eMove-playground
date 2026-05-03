@@ -20,6 +20,26 @@ Generated or local-only paths include:
 - `.mplconfig/`
 - `*.mat`, except explicitly curated files in `resources/templates/`
 
+Generated or local-only paths include:
+
+- scratch/
+- outputs/
+- results/
+- cache/
+- tmp/
+- temp/
+- .venv/
+- .venv_*/
+- .mplconfig/
+- *.mat, except explicitly curated files in resources/templates/
+Exploratory agent work should write temporary figures, logs, CSVs, scripts, and intermediate analysis files under a task-specific folder in `scratch/`, for example:
+
+`scratch/taskName_YYYYMMDD/`
+
+At the end of the task, report all created files and recommend which, if any, should be promoted to tracked locations such as `scripts/`, `docs/`, `figures/`, `resources/`, or `NCMposter/`.
+
+Do not promote, stage, move, or delete files unless explicitly asked.
+
 Prefer selective staging:
 `git add path/to/file1 path/to/file2`
 

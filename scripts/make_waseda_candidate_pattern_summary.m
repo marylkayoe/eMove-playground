@@ -28,11 +28,13 @@ for iRec = 1:numel(recordings)
     series = discoverWasedaAccSeries(opts.rawRoot, recording, opts.sensorKey);
     env = computeWasedaDynamicMagnitude(series, opts.envWindowSec);
     env = movmean(env, localCenteredWindow(opts.smoothSec, series.sample_rate_hz), 'Endpoints', 'shrink');
+    [envAnalysis, envDisplay, ~] = preprocessWasedaDynamicEnvelope(series.times_sec, env, ...
+        'artifactThreshold', opts.artifactEnvThreshold);
     for iWin = 1:numel(recording.windows)
         window = recording.windows(iWin);
         key = localWindowKey(recording.recording_id, recording.subject_id, window.condition, window.note_window);
         [startSec, endSec] = parseWasedaNoteWindow(window.note_window, series.reference_abs_sec);
-        payload = struct('series', series, 'env', env);
+        payload = struct('series', series, 'envAnalysis', envAnalysis, 'envDisplay', envDisplay);
         seriesMap(key) = payload;
         windowMap(key) = [startSec, endSec];
     end
@@ -64,6 +66,7 @@ p.addParameter('sensorKey', 'chest');
 p.addParameter('envWindowSec', 1.0);
 p.addParameter('smoothSec', 2.0);
 p.addParameter('eventContextSec', 20.0);
+p.addParameter('artifactEnvThreshold', 0.5);
 p.parse(varargin{:});
 opts = p.Results;
 end
@@ -78,12 +81,13 @@ key = localWindowKey(localTextValue(row.recording_id), localTextValue(row.subjec
 payload = seriesMap(key);
 windowSec = windowMap(key);
 series = payload.series;
-env = payload.env;
+envAnalysis = payload.envAnalysis;
+envDisplay = payload.envDisplay;
 startSec = windowSec(1);
 endSec = windowSec(2);
 idxs = find(series.times_sec >= startSec & series.times_sec < endSec);
 minutes = (series.times_sec(idxs) - startSec) / 60;
-[center, band] = localStableBand(env(idxs));
+[center, band] = localStableBand(envAnalysis(idxs));
 
 t = localCreatePanelLayout(parentFig, placeholderAx, 3, 1);
 title(t, '1. Slow drift candidate in actual signal', 'FontWeight', 'bold', 'HorizontalAlignment', 'left');
@@ -107,13 +111,14 @@ ylabel(ax2, {'raw magnitude', 'centered (g)'});
 grid(ax2, 'on');
 
 ax3 = nexttile(t);
-plot(ax3, minutes, env(idxs), 'k', 'LineWidth', 0.8); hold(ax3, 'on');
+plot(ax3, minutes, envDisplay(idxs), 'k', 'LineWidth', 0.8); hold(ax3, 'on');
 yline(ax3, center, '-', 'Color', [0.30 0.47 0.65], 'LineWidth', 1.0);
 patch(ax3, [minutes(1) minutes(end) minutes(end) minutes(1)], [center-band center-band center+band center+band], ...
     [0.30 0.47 0.65], 'FaceAlpha', 0.12, 'EdgeColor', 'none');
 ylabel(ax3, 'dynamic envelope');
 xlabel(ax3, 'minutes from condition start');
 grid(ax3, 'on');
+ylim(ax3, [0 localRobustUpperLimit(envDisplay(idxs), center, band)]);
 end
 
 function localPlotEventGallery(parentFig, placeholderAx, windowTbl, burstTbl, seriesMap, windowMap, opts)
@@ -142,8 +147,9 @@ for iRow = 1:size(targets, 1)
     payload = seriesMap(key);
     windowSec = windowMap(key);
     series = payload.series;
-    env = payload.env;
-    [center, band] = localStableBand(env(series.times_sec >= windowSec(1) & series.times_sec < windowSec(2)));
+    envAnalysis = payload.envAnalysis;
+    envDisplay = payload.envDisplay;
+    [center, band] = localStableBand(envAnalysis(series.times_sec >= windowSec(1) & series.times_sec < windowSec(2)));
     peakSec = str2double(string(event.peak_sec));
     leftSec = max(windowSec(1), peakSec - opts.eventContextSec);
     rightSec = min(windowSec(2), peakSec + opts.eventContextSec);
@@ -166,7 +172,7 @@ for iRow = 1:size(targets, 1)
         'FontSize', 9, 'FontWeight', 'normal', 'HorizontalAlignment', 'left');
 
     axEnv = nexttile(t);
-    plot(axEnv, x, env(idxs), 'k', 'LineWidth', 0.9); hold(axEnv, 'on');
+    plot(axEnv, x, envDisplay(idxs), 'k', 'LineWidth', 0.9); hold(axEnv, 'on');
     patch(axEnv, [x(1) x(end) x(end) x(1)], [center-band center-band center+band center+band], ...
         [0.30 0.47 0.65], 'FaceAlpha', 0.12, 'EdgeColor', 'none');
     yline(axEnv, center, '-', 'Color', [0.30 0.47 0.65], 'LineWidth', 0.8);
@@ -175,6 +181,7 @@ for iRow = 1:size(targets, 1)
     grid(axEnv, 'on');
     ylabel(axEnv, 'dynamic envelope');
     xlabel(axEnv, 'seconds from candidate peak');
+    ylim(axEnv, [0 localRobustUpperLimit(envDisplay(idxs), center, band)]);
 end
 end
 
@@ -243,6 +250,16 @@ grid(ax3, 'on');
 xlim(ax3, [0 5.0]);
 text(ax1, 0.0, -0.24, 'These tighter histograms use only strict artifact-screened departures, with x-ranges chosen to show the informative part of the distribution rather than the extreme tail.', ...
     'Units', 'normalized', 'FontSize', 9, 'Color', [0.35 0.35 0.35]);
+end
+
+function ylimUpper = localRobustUpperLimit(envValues, envCenter, stableBand)
+validValues = envValues(~isnan(envValues));
+if isempty(validValues)
+    ylimUpper = max(envCenter + 3 * stableBand, 0.05);
+    return;
+end
+upperCandidate = quantile(validValues, 0.995);
+ylimUpper = max([upperCandidate, envCenter + 2.5 * stableBand, median(validValues) + 4 * iqr(validValues), 0.05]);
 end
 
 function t = localCreatePanelLayout(parentFig, placeholderAx, nRows, nCols)

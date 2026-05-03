@@ -32,12 +32,20 @@ Tracked local files:
   - `resources/waseda_acc/dataset_manifest.json`
 - signal feature helper:
   - `CODE/ANALYSIS/computeWasedaDynamicMagnitude.m`
+- envelope preprocessing helper:
+  - `CODE/ANALYSIS/preprocessWasedaDynamicEnvelope.m`
 - quiet-dynamics probe:
   - `scripts/run_waseda_quiet_dynamics_probe.m`
 - candidate-pattern summary figure:
   - `scripts/make_waseda_candidate_pattern_summary.m`
 - focused departure figure set:
   - `scripts/make_waseda_departure_figure_set.m`
+- zoomable envelope/event figures:
+  - `scripts/make_waseda_envelope_event_figures.m`
+- condition-split CDF figures:
+  - `scripts/make_waseda_departure_metric_cdfs.m`
+- metric-vs-time scatter figures:
+  - `scripts/make_waseda_event_metric_scatter_vs_time.m`
 
 Current scratch outputs from the MATLAB port:
 
@@ -73,6 +81,15 @@ Current best actual example from the separate thread:
 
 - `sub1` video is the clearest drift candidate
 
+Current best detector framing in this repository:
+
+- clean the dynamic envelope first
+- blank clear artifact peaks (`env >= 0.5`) in the displayed envelope
+- interpolate through those peaks for stable-band estimation and event finding
+- treat accepted events as compound quiet-state departures rather than local
+  derivative bursts
+- inspect durations directly in the zoomable figures using event-span overlays
+
 Interpretation boundary:
 
 - departures may reflect posture correction, discomfort, task drift, or other
@@ -86,12 +103,23 @@ Interpretation boundary:
 These values are exploratory orientation only, not claim-grade results:
 
 - pooled strict-departure median inter-event interval:
-  - desk: roughly `8.0 s`
-  - video: roughly `4.7 s`
+  - desk: roughly `6.5 s`
+  - video: roughly `4.2 s`
 - strict-screened departure-shape medians:
-  - duration: `0.367 s`
-  - amplitude above baseline: `0.010`
-  - return-to-baseline: `0.734 s`
+  - pooled duration median: `1.706 s`
+  - pooled amplitude above baseline median: `0.005`
+  - pooled return-to-baseline median: `0.174 s`
+- current condition-split strict medians:
+  - desk duration median: `2.285 s`
+  - video duration median: `1.501 s`
+  - desk amplitude median: `0.0073`
+  - video amplitude median: `0.0029`
+  - desk return median: `0.270 s`
+  - video return median: `0.127 s`
+- current visual working hint:
+  - a dense short-duration mode appears to sit roughly around `0.3-0.6 s`
+  - longer accepted events may often be compound events built from such
+    shorter subelements
 
 ## Important Methodological Lessons
 
@@ -103,8 +131,11 @@ The separate thread already clarified several dead ends and framing changes:
   itself
 - the productive shift was from "detect low-animation regime" to
   "characterize quiet-state departures and drift"
-- histogram/distribution displays became interpretable only after stricter
-  screening and tighter plotting ranges
+- histogram/distribution displays became interpretable only after:
+  - artifact screening,
+  - compound-event treatment,
+  - clipped comparison views,
+  - and left-end zoom insets
 
 Two implementation fixes recorded in the source handoff should not be
 forgotten if equivalent code is recreated here later:

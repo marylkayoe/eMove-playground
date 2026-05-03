@@ -26,6 +26,8 @@ for iRec = 1:numel(recordings)
         series = discoverWasedaAccSeries(opts.rawRoot, recording, sensorKey);
         env = computeWasedaDynamicMagnitude(series, opts.envWindowSec);
         envSmooth = localRollingMeanCentered(env, localSamplesForSeconds(series.sample_rate_hz, opts.smoothSec));
+        [envSmooth, ~, ~] = preprocessWasedaDynamicEnvelope(series.times_sec, envSmooth, ...
+            'artifactThreshold', opts.artifactEnvThreshold);
         envRate = localAbsDerivative(series.times_sec, envSmooth);
 
         for iWin = 1:numel(recording.windows)
@@ -101,11 +103,12 @@ p.addParameter('burstMergeGapSec', 0.30, @isscalar);
 p.addParameter('burstContextSec', 5.0, @isscalar);
 p.addParameter('returnWindowSec', 12.0, @isscalar);
 p.addParameter('minBurstDurationSec', 0.01, @isscalar);
-p.addParameter('compoundMergeGapSec', 0.10, @isscalar);
+p.addParameter('compoundMergeGapSec', 0.35, @isscalar);
 p.addParameter('stableGapToleranceSec', 0.05, @isscalar);
-p.addParameter('artifactEnvThreshold', 0.95, @isscalar);
+p.addParameter('artifactEnvThreshold', 0.50, @isscalar);
 p.addParameter('stableReferenceQuantile', 0.80, @isscalar);
 p.addParameter('stableUpperQuantile', 0.95, @isscalar);
+p.addParameter('supportBandFraction', 0.00, @isscalar);
 p.parse(varargin{:});
 opts = p.Results;
 opts.manifestPath = char(opts.manifestPath);
@@ -203,16 +206,26 @@ end
 end
 
 function bursts = localDetectStableBandDepartures(series, env, envRate, idxs, envCenter, stableBand, windowArtifactMask, opts)
-mask = false(size(series.times_sec));
-windowMask = env(idxs) > (envCenter + stableBand);
-windowMask(windowArtifactMask) = false;
-mask(idxs) = windowMask;
-mask = localFillShortFalseGaps(series.times_sec, mask, opts.stableGapToleranceSec);
-runs = localMaskToRuns(mask);
+upperThreshold = envCenter + stableBand;
+lowerThreshold = envCenter + opts.supportBandFraction * stableBand;
+supportMask = false(size(series.times_sec));
+windowSupportMask = env(idxs) > lowerThreshold;
+windowSupportMask(windowArtifactMask) = false;
+supportMask(idxs) = windowSupportMask;
+supportMask = localFillShortFalseGaps(series.times_sec, supportMask, opts.stableGapToleranceSec);
+runs = localMaskToRuns(supportMask);
 rawBursts = struct([]);
 for iRun = 1:size(runs, 1)
     startIdx = runs(iRun, 1);
     endIdx = runs(iRun, 2);
+    runMask = idxs >= startIdx & idxs <= endIdx;
+    runArtifactMask = windowArtifactMask(runMask);
+    if any(runArtifactMask)
+        continue;
+    end
+    if ~any(env(startIdx:endIdx) > upperThreshold)
+        continue;
+    end
     [~, peakOffset] = max(env(startIdx:endIdx));
     peakIdx = startIdx + peakOffset - 1;
     baselineEnv = envCenter;
@@ -240,6 +253,7 @@ for iRun = 1:size(runs, 1)
 end
 
 bursts = localMergeBurstsWithoutRecovery(rawBursts, env, envRate, series.times_sec, stableBand, opts);
+bursts = bursts(arrayfun(@(burst) burst.peak_env < opts.artifactEnvThreshold, bursts));
 bursts = bursts(arrayfun(@(burst) burst.duration_sec >= opts.minBurstDurationSec, bursts));
 end
 
@@ -294,6 +308,11 @@ end
 
 function shouldMerge = localShouldMergeBursts(firstBurst, secondBurst, env, timesSec, stableBand, opts)
 gapSec = secondBurst.start_sec - firstBurst.end_sec;
+betweenIdx = firstBurst.end_idx:secondBurst.start_idx;
+if any(env(betweenIdx) >= opts.artifactEnvThreshold)
+    shouldMerge = false;
+    return;
+end
 if gapSec <= opts.compoundMergeGapSec
     shouldMerge = true;
     return;

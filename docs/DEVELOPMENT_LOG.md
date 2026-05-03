@@ -4,6 +4,63 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-05-03
 
+### Waseda ACC Compound-Event Detector And Comparison Figures Refined
+
+- The Waseda quiet-dynamics MATLAB continuation was extended beyond the first
+  simple burst proxy.
+- The current working detector now uses:
+  - a cleaned dynamic envelope
+  - explicit blanking of clear envelope outliers at `env >= 0.5`
+  - compound-event support built from occupancy above a quiet-state reference
+  - tolerant short-gap clustering
+  - artifact screening before event export
+- Added shared envelope preprocessing:
+  - [preprocessWasedaDynamicEnvelope.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ANALYSIS/preprocessWasedaDynamicEnvelope.m)
+
+### New Waseda MATLAB Figure Entry Points
+
+- Added zoomable envelope/event figure rendering:
+  - [make_waseda_envelope_event_figures.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_waseda_envelope_event_figures.m)
+- Added condition-split CDF summaries:
+  - [make_waseda_departure_metric_cdfs.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_waseda_departure_metric_cdfs.m)
+- Added metric-vs-time scatter summaries:
+  - [make_waseda_event_metric_scatter_vs_time.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_waseda_event_metric_scatter_vs_time.m)
+- The focused departure figure set and candidate-pattern summary were also
+  updated to use the cleaned envelope and the current event table.
+
+### Current Descriptive Read
+
+- The current MATLAB figures support a stronger descriptive story than the
+  earlier raw dense-burst pass.
+- Desk-work departures are currently:
+  - longer
+  - larger in amplitude above local baseline
+  - and slower to return
+  than watching-video departures.
+- Current strict-event medians:
+  - desk duration median: `2.285 s`
+  - video duration median: `1.501 s`
+  - desk amplitude median: `0.0073`
+  - video amplitude median: `0.0029`
+  - desk return median: `0.270 s`
+  - video return median: `0.127 s`
+- The clipped histogram views plus left-end insets now make visible a dense
+  short-duration mode roughly around `0.3-0.6 s`.
+- Current working interpretation:
+  - single departures in that short range may be a meaningful primitive
+  - longer events may often be compound events built from such subelements
+
+### Interpretation Boundary Remains Important
+
+- This is still a descriptive / protocol-development result, not yet a
+  validated psychological inference.
+- The current evidence is best described as:
+  - compound quiet-state departures with structure
+  - condition-dependent distribution shifts
+  - and a plausible short-event mode worth testing explicitly
+- It should **not** yet be promoted as a settled marker of attention,
+  frustration, or cognitive load without better-controlled follow-up.
+
 ### Waseda ACC MATLAB Port Started In This Repository
 
 - Added a repo-local Waseda manifest:

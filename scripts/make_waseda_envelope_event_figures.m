@@ -24,11 +24,13 @@ for iRec = 1:numel(recordings)
     series = discoverWasedaAccSeries(opts.rawRoot, recording, opts.sensorKey);
     env = computeWasedaDynamicMagnitude(series, opts.envWindowSec);
     env = movmean(env, localCenteredWindow(opts.smoothSec, series.sample_rate_hz), 'Endpoints', 'shrink');
+    [envAnalysis, envDisplay, ~] = preprocessWasedaDynamicEnvelope(series.times_sec, env, ...
+        'artifactThreshold', opts.artifactEnvThreshold);
     for iWin = 1:numel(recording.windows)
         window = recording.windows(iWin);
         key = localWindowKey(recording.recording_id, recording.subject_id, window.condition, window.note_window);
         [startSec, endSec] = parseWasedaNoteWindow(window.note_window, series.reference_abs_sec);
-        payload = struct('series', series, 'env', env);
+        payload = struct('series', series, 'envAnalysis', envAnalysis, 'envDisplay', envDisplay);
         seriesMap(key) = payload;
         windowMap(key) = [startSec, endSec];
     end
@@ -51,6 +53,7 @@ p.addParameter('outputRoot', fullfile(repoRoot, 'scratch', 'waseda_acc_matlab', 
 p.addParameter('sensorKey', 'chest');
 p.addParameter('envWindowSec', 1.0);
 p.addParameter('smoothSec', 2.0);
+p.addParameter('artifactEnvThreshold', 0.5);
 p.parse(varargin{:});
 opts = p.Results;
 end
@@ -81,12 +84,15 @@ for iRow = 1:numel(windowRows)
     payload = seriesMap(key);
     windowSec = windowMap(key);
     series = payload.series;
-    env = payload.env;
+    envAnalysis = payload.envAnalysis;
+    envDisplay = payload.envDisplay;
     idxs = find(series.times_sec >= windowSec(1) & series.times_sec < windowSec(2));
     xMinutes = (series.times_sec(idxs) - windowSec(1)) / 60;
-    envValues = env(idxs);
+    envValues = envDisplay(idxs);
     envCenter = str2double(string(row.env_center));
     stableBand = str2double(string(row.stable_band));
+    ylimUpper = localRobustUpperLimit(envDisplay(idxs), envCenter, stableBand);
+    ylimLower = 0;
 
     ax = nexttile(t);
     patch(ax, [xMinutes(1) xMinutes(end) xMinutes(end) xMinutes(1)], ...
@@ -97,9 +103,15 @@ for iRow = 1:numel(windowRows)
 
     eventRows = localSelectEventRows(burstTbl, row);
     if ~isempty(eventRows)
+        eventStartSec = str2double(string({eventRows.start_sec}));
+        eventEndSec = str2double(string({eventRows.end_sec}));
         eventPeakSec = str2double(string({eventRows.peak_sec}));
         eventPeakEnv = str2double(string({eventRows.peak_env}));
+        eventPeakEnv = min(eventPeakEnv, ylimUpper * 0.98);
+        eventStartMin = (eventStartSec - windowSec(1)) / 60;
+        eventEndMin = (eventEndSec - windowSec(1)) / 60;
         eventXMinutes = (eventPeakSec - windowSec(1)) / 60;
+        localPlotDurationBars(ax, eventStartMin, eventEndMin, ylimLower, ylimUpper);
         scatter(ax, eventXMinutes, eventPeakEnv, 18, [0.86 0.18 0.18], 'o', ...
             'MarkerFaceColor', [0.86 0.18 0.18], 'MarkerFaceAlpha', 0.45, 'MarkerEdgeAlpha', 0.45);
 
@@ -112,13 +124,14 @@ for iRow = 1:numel(windowRows)
 
     grid(ax, 'on');
     ylabel(ax, 'dynamic envelope');
+    ylim(ax, [ylimLower ylimUpper]);
     title(ax, sprintf('%s | %s | all=%d, strict=%d, drift=%.2f band widths', ...
         localTextValue(row.subject_id), strrep(strrep(localTextValue(row.condition), '_stand', ''), '_', ' '), ...
         str2double(string(row.candidate_burst_count)), str2double(string(row.strict_burst_count)), ...
         str2double(string(row.first_to_last_env_median_delta_over_stable_band))), ...
         'FontWeight', 'normal', 'HorizontalAlignment', 'left');
     if iRow == 1
-        legend(ax, {'stable band', 'dynamic envelope', 'window median', 'candidate event', 'strict event'}, ...
+        legend(ax, {'stable band', 'dynamic envelope', 'window median', 'compound duration', 'candidate event', 'strict event'}, ...
             'Location', 'northeastoutside', 'Box', 'off');
     end
 end
@@ -164,6 +177,26 @@ strictMask = false(numel(eventRows), 1);
 for iEvent = 1:numel(eventRows)
     strictMask(iEvent) = str2double(string(eventRows(iEvent).env_delta)) >= stableBand;
 end
+end
+
+function localPlotDurationBars(ax, startMin, endMin, ylimLower, ylimUpper)
+barBottom = ylimLower + 0.90 * (ylimUpper - ylimLower);
+barTop = ylimLower + 0.97 * (ylimUpper - ylimLower);
+for iEvent = 1:numel(startMin)
+    patch(ax, [startMin(iEvent) endMin(iEvent) endMin(iEvent) startMin(iEvent)], ...
+        [barBottom barBottom barTop barTop], [0.60 0.10 0.10], ...
+        'FaceAlpha', 0.18, 'EdgeColor', 'none');
+end
+end
+
+function ylimUpper = localRobustUpperLimit(envValues, envCenter, stableBand)
+validValues = envValues(~isnan(envValues));
+if isempty(validValues)
+    ylimUpper = max(envCenter + 3 * stableBand, 0.05);
+    return;
+end
+upperCandidate = quantile(validValues, 0.995);
+ylimUpper = max([upperCandidate, envCenter + 2.5 * stableBand, median(validValues) + 4 * iqr(validValues), 0.05]);
 end
 
 function recordings = localFlattenRecordings(manifest)

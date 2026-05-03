@@ -27,11 +27,13 @@ for iRec = 1:numel(recordings)
     series = discoverWasedaAccSeries(opts.rawRoot, recording, opts.sensorKey);
     env = computeWasedaDynamicMagnitude(series, opts.envWindowSec);
     env = movmean(env, localCenteredWindow(opts.smoothSec, series.sample_rate_hz), 'Endpoints', 'shrink');
+    [envAnalysis, envDisplay, ~] = preprocessWasedaDynamicEnvelope(series.times_sec, env, ...
+        'artifactThreshold', opts.artifactEnvThreshold);
     for iWin = 1:numel(recording.windows)
         window = recording.windows(iWin);
         key = localWindowKey(recording.recording_id, recording.subject_id, window.condition, window.note_window);
         [startSec, endSec] = parseWasedaNoteWindow(window.note_window, series.reference_abs_sec);
-        payload = struct('series', series, 'env', env);
+        payload = struct('series', series, 'envAnalysis', envAnalysis, 'envDisplay', envDisplay);
         seriesMap(key) = payload;
         windowMap(key) = [startSec, endSec];
     end
@@ -55,6 +57,7 @@ p.addParameter('sensorKey', 'chest');
 p.addParameter('envWindowSec', 1.0);
 p.addParameter('smoothSec', 2.0);
 p.addParameter('eventContextSec', 20.0);
+p.addParameter('artifactEnvThreshold', 0.5);
 p.parse(varargin{:});
 opts = p.Results;
 end
@@ -81,9 +84,10 @@ for iRow = 1:numel(selectedRows)
     payload = seriesMap(key);
     windowSec = windowMap(key);
     series = payload.series;
-    env = payload.env;
+    envAnalysis = payload.envAnalysis;
+    envDisplay = payload.envDisplay;
     idxWindow = series.times_sec >= windowSec(1) & series.times_sec < windowSec(2);
-    [center, band] = localStableBand(env(idxWindow));
+    [center, band] = localStableBand(envAnalysis(idxWindow));
     peakSec = str2double(string(event.peak_sec));
     leftSec = max(windowSec(1), peakSec - opts.eventContextSec);
     rightSec = min(windowSec(2), peakSec + opts.eventContextSec);
@@ -107,7 +111,7 @@ for iRow = 1:numel(selectedRows)
         'FontSize', 11, 'FontWeight', 'normal', 'HorizontalAlignment', 'left');
 
     axEnv = nexttile(t);
-    plot(axEnv, x, env(idxs), 'k', 'LineWidth', 1.0); hold(axEnv, 'on');
+    plot(axEnv, x, envDisplay(idxs), 'k', 'LineWidth', 1.0); hold(axEnv, 'on');
     patch(axEnv, [x(1) x(end) x(end) x(1)], [center-band center-band center+band center+band], ...
         [0.30 0.47 0.65], 'FaceAlpha', 0.12, 'EdgeColor', 'none');
     yline(axEnv, center, '-', 'Color', [0.30 0.47 0.65], 'LineWidth', 0.9);
@@ -116,6 +120,7 @@ for iRow = 1:numel(selectedRows)
     ylabel(axEnv, 'dynamic envelope');
     xlabel(axEnv, 'seconds from candidate peak');
     grid(axEnv, 'on');
+    ylim(axEnv, [0 localRobustUpperLimit(envDisplay(idxs), center, band)]);
 end
 
 exportgraphics(figureHandle, fullfile(opts.outputRoot, 'waseda_candidate_departures_examples_matlab.png'), 'Resolution', 180);
@@ -168,38 +173,133 @@ returns = returns(~isnan(returns));
 figureHandle = figure('Color', 'w', 'Position', [100 100 1700 640]);
 t = tiledlayout(1, 3, 'TileSpacing', 'compact', 'Padding', 'compact');
 title(t, 'Departure Duration And Amplitude Distributions', 'FontSize', 20, 'FontWeight', 'bold');
-subtitle(t, 'Strict artifact-screened departures only.', 'FontSize', 12);
+subtitle(t, 'Strict artifact-screened departures only. Histogram x-ranges clipped at the pooled 98th percentile with higher-resolution bins.', 'FontSize', 12);
 
 ax1 = nexttile(t);
-durationEdges = linspace(0, 2.0, 26);
-histogram(ax1, durations, durationEdges, 'FaceColor', [0.30 0.47 0.65], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax1, 'on');
+durationUpper = quantile(durations, 0.98);
+durationView = durations(durations <= durationUpper);
+durationEdges = localHistogramEdges(durationView, 18, 55);
+histogram(ax1, durationView, durationEdges, 'FaceColor', [0.30 0.47 0.65], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax1, 'on');
 xline(ax1, median(durations, 'omitnan'), 'k-', 'LineWidth', 1.7);
 xlabel(ax1, 'departure duration (s)');
 ylabel(ax1, 'count');
-title(ax1, sprintf('n=%d\nmedian=%.3f', numel(durations), median(durations, 'omitnan')));
+title(ax1, sprintf('n=%d shown<=%.3f\nmedian=%.3f, max=%.3f', numel(durationView), durationUpper, median(durations, 'omitnan'), max(durations)));
 grid(ax1, 'on');
-xlim(ax1, [0 2.0]);
+xlim(ax1, [min(durationEdges) max(durationEdges)]);
+localAddHistogramInset(figureHandle, ax1, durationView, [0.30 0.47 0.65], median(durations, 'omitnan'), ...
+    localInsetUpper(durationView, 0.65));
 
 ax2 = nexttile(t);
-amplitudeEdges = linspace(0, 0.05, 21);
-histogram(ax2, amplitudes, amplitudeEdges, 'FaceColor', [0.96 0.52 0.13], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax2, 'on');
+amplitudeUpper = quantile(amplitudes, 0.98);
+amplitudeView = amplitudes(amplitudes <= amplitudeUpper);
+amplitudeEdges = localHistogramEdges(amplitudeView, 18, 55);
+histogram(ax2, amplitudeView, amplitudeEdges, 'FaceColor', [0.96 0.52 0.13], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax2, 'on');
 xline(ax2, median(amplitudes, 'omitnan'), 'k-', 'LineWidth', 1.7);
 xlabel(ax2, 'departure amplitude above baseline');
-title(ax2, sprintf('n=%d\nmedian=%.3f', numel(amplitudes), median(amplitudes, 'omitnan')));
+title(ax2, sprintf('n=%d shown<=%.3f\nmedian=%.3f, max=%.3f', numel(amplitudeView), amplitudeUpper, median(amplitudes, 'omitnan'), max(amplitudes)));
 grid(ax2, 'on');
-xlim(ax2, [0 0.05]);
+xlim(ax2, [min(amplitudeEdges) max(amplitudeEdges)]);
+localAddHistogramInset(figureHandle, ax2, amplitudeView, [0.96 0.52 0.13], median(amplitudes, 'omitnan'), ...
+    localInsetUpper(amplitudeView, 0.70));
 
 ax3 = nexttile(t);
-returnEdges = linspace(0, 5.0, 26);
-histogram(ax3, returns, returnEdges, 'FaceColor', [0.33 0.64 0.33], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax3, 'on');
+returnUpper = quantile(returns, 0.98);
+returnView = returns(returns <= returnUpper);
+returnEdges = localHistogramEdges(returnView, 18, 55);
+histogram(ax3, returnView, returnEdges, 'FaceColor', [0.33 0.64 0.33], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax3, 'on');
 xline(ax3, median(returns, 'omitnan'), 'k-', 'LineWidth', 1.7);
 xlabel(ax3, 'return-to-baseline time (s)');
-title(ax3, sprintf('n=%d\nmedian=%.3f', numel(returns), median(returns, 'omitnan')));
+title(ax3, sprintf('n=%d shown<=%.3f\nmedian=%.3f, max=%.3f', numel(returnView), returnUpper, median(returns, 'omitnan'), max(returns)));
 grid(ax3, 'on');
-xlim(ax3, [0 5.0]);
+xlim(ax3, [min(returnEdges) max(returnEdges)]);
+localAddHistogramInset(figureHandle, ax3, returnView, [0.33 0.64 0.33], median(returns, 'omitnan'), ...
+    localInsetUpper(returnView, 0.70));
 
 exportgraphics(figureHandle, fullfile(opts.outputRoot, 'waseda_departure_metric_distributions_matlab.png'), 'Resolution', 180);
 close(figureHandle);
+end
+
+function ylimUpper = localRobustUpperLimit(envValues, envCenter, stableBand)
+validValues = envValues(~isnan(envValues));
+if isempty(validValues)
+    ylimUpper = max(envCenter + 3 * stableBand, 0.05);
+    return;
+end
+upperCandidate = quantile(validValues, 0.995);
+ylimUpper = max([upperCandidate, envCenter + 2.5 * stableBand, median(validValues) + 4 * iqr(validValues), 0.05]);
+end
+
+function edges = localHistogramEdges(values, minBins, maxBins)
+if nargin < 2
+    minBins = 12;
+end
+if nargin < 3
+    maxBins = 45;
+end
+values = values(~isnan(values));
+if isempty(values)
+    edges = [0 1];
+    return;
+end
+minValue = min(values);
+maxValue = max(values);
+if minValue == maxValue
+    delta = max(abs(minValue) * 0.1, 1e-3);
+    edges = [minValue - delta, maxValue + delta];
+    return;
+end
+iqrValue = iqr(values);
+n = numel(values);
+if iqrValue <= 0 || n < 2
+    nBins = min(maxBins, max(minBins, ceil(sqrt(n))));
+else
+    binWidth = 2 * iqrValue / nthroot(n, 3);
+    if ~isfinite(binWidth) || binWidth <= 0
+        nBins = min(maxBins, max(minBins, ceil(sqrt(n))));
+    else
+        nBins = ceil((maxValue - minValue) / binWidth);
+        nBins = min(maxBins, max(minBins, nBins));
+    end
+end
+edges = linspace(minValue, maxValue, nBins + 1);
+end
+
+function upper = localInsetUpper(values, quantileValue)
+values = values(~isnan(values));
+if isempty(values)
+    upper = 1;
+    return;
+end
+upper = quantile(values, quantileValue);
+if upper <= min(values)
+    upper = max(values);
+end
+if upper <= 0
+    upper = 1;
+end
+end
+
+function localAddHistogramInset(parentFigure, parentAx, values, faceColor, medianValue, insetUpper)
+values = values(~isnan(values) & values <= insetUpper);
+if isempty(values)
+    return;
+end
+parentPos = parentAx.Position;
+insetPos = [parentPos(1) + 0.56 * parentPos(3), ...
+    parentPos(2) + 0.50 * parentPos(4), ...
+    0.34 * parentPos(3), ...
+    0.34 * parentPos(4)];
+insetAx = axes('Parent', parentFigure, 'Position', insetPos);
+edges = localHistogramEdges(values, 16, 40);
+histogram(insetAx, values, edges, 'FaceColor', faceColor, 'EdgeColor', 'w', 'EdgeAlpha', 0.25); hold(insetAx, 'on');
+if medianValue <= insetUpper
+    xline(insetAx, medianValue, 'k-', 'LineWidth', 1.0);
+end
+grid(insetAx, 'on');
+xlim(insetAx, [min(edges) max(edges)]);
+title(insetAx, sprintf('left-end <= %.3f', insetUpper), 'FontSize', 8, 'FontWeight', 'normal');
+set(insetAx, 'FontSize', 8);
+box(insetAx, 'on');
 end
 
 function stableBandMap = localStableBandMap(windowTbl)

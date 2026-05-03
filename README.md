@@ -42,16 +42,36 @@ Current scope:
 Current tracked entry points:
 - repo-local manifest:
   - `resources/waseda_acc/dataset_manifest.json`
+- envelope preprocessing helper:
+  - `CODE/ANALYSIS/preprocessWasedaDynamicEnvelope.m`
 - quiet-dynamics probe:
   - `scripts/run_waseda_quiet_dynamics_probe.m`
 - candidate-pattern summary figure:
   - `scripts/make_waseda_candidate_pattern_summary.m`
 - focused departure figure set:
   - `scripts/make_waseda_departure_figure_set.m`
+- zoomable envelope/event figures:
+  - `scripts/make_waseda_envelope_event_figures.m`
+- condition-split metric CDFs:
+  - `scripts/make_waseda_departure_metric_cdfs.m`
+- metric-vs-time scatter summaries:
+  - `scripts/make_waseda_event_metric_scatter_vs_time.m`
 
 Current output policy:
 - generated Waseda outputs should go to `scratch/waseda_acc_matlab/...`
 - do not commit probe CSVs or rendered figures unless explicitly promoted
+
+Current descriptive status:
+- the most useful current Waseda event object is a compound quiet-state
+  departure, not a dense derivative spike
+- artifact blanking at the envelope level is now part of the workflow
+- current desk vs video comparison figures suggest:
+  - longer departures in desk work,
+  - larger departure amplitudes in desk work,
+  - slower return-to-baseline in desk work,
+  - and a plausible short-duration event mode around roughly `0.5 s`
+- this remains a protocol-development / candidate-pattern track, not a
+  validated psychological inference
 
 ## Interactive Exploration Tools
 - Micromovement example browser:

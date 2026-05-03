@@ -4,6 +4,112 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-05-03
 
+### Frequency-Space Follow-Up Triggered By Envelope Oscillation
+
+- The Waseda envelope figures exposed a strong rhythmic baseline component
+  that was still visible even after artifact blanking and compound-event
+  consolidation.
+- The trigger for the next analysis branch was explicit user review of that
+  oscillation and a request to inspect frequency space before changing the
+  event detector again.
+- The resulting question is now:
+  - whether the rhythmic component is mostly sensor / placement / mechanics,
+    or
+  - whether part of it is introduced or sharpened by the envelope pipeline.
+- The important working constraint is unchanged:
+  - even if the oscillation is biologically real, it is still nuisance for the
+    current event-analysis goal if it inflates the stable-band estimate.
+
+### Raw ACC Frequency-Space Inspection Started
+
+- Added exploratory MATLAB figures for the raw chest ACC signal:
+  - raw magnitude spectrograms across the 8 Waseda windows
+  - raw `X/Y/Z/magnitude` power spectra across the same windows
+- Early qualitative read:
+  - the rhythmic structure is already visible in the raw signal, so it is not
+    solely invented by the envelope pipeline
+  - `sub4` looks materially different from the other subjects
+  - `sub2` is comparatively broadband / irregular
+  - `sub1` and `sub4` show the most obvious structured periodic content
+- This means the frequency issue should be treated as a real signal-cleaning
+  problem, not only as an envelope-display problem.
+
+### Raw Carrier Summary Suggests A Subject-Specific Band
+
+- Added a scratch summary of raw chest ACC spectral peaks per Waseda window.
+- Exploratory peak frequencies in the raw magnitude were not identical across
+  windows:
+  - `sub1` desk: about `0.54 Hz`
+  - `sub1` video: about `0.71 Hz`
+  - `sub2` desk: about `0.20 Hz`
+  - `sub2` video: about `0.40 Hz`
+  - `sub3` desk: about `1.03 Hz`
+  - `sub3` video: about `1.09 Hz`
+  - `sub4` desk: about `0.57 Hz`
+  - `sub4` video: about `1.21 Hz`
+- The shared message is not a single fixed tone.
+- The more defensible interpretation is a carrier-like low-frequency band
+  spread across roughly `0.5-1.2 Hz` in several windows, with subject-specific
+  placement and at least one notably different subject (`sub2`).
+- That makes a single narrow global notch look too brittle.
+- A window-specific or subject-specific suppression test is likely to be more
+  informative than a one-size-fits-all cutoff.
+
+### First 1 Hz High-Pass Preview Of Event Detection
+
+- A comparison run was made after applying a zero-phase `1 Hz` high-pass to
+  the raw chest ACC axes before the dynamic-envelope step.
+- This was intentionally treated as a preprocessing comparison, not as a
+  permanent pipeline change.
+- Early qualitative result:
+  - the event trace becomes sharper and more spike-like
+  - the detector does not collapse to a sparse primitive-event set
+  - instead, candidate counts remain high
+- Quantitative preview from the high-pass run:
+  - burst rows: `755`
+  - stable bands are smaller than in the unfiltered-envelope runs
+  - return times are shorter, often around `0.09-0.35 s`
+- Subject-wise impression:
+  - `sub3` and `sub4` remain structurally different
+  - `sub1` and `sub2` still show substantial event activity
+- Current interpretation:
+  - `1 Hz` high-pass alone is too blunt to be the final answer
+  - it may be useful as a comparison condition
+  - but it does not yet isolate the primitive departures cleanly enough on
+    its own
+- The next useful comparison is likely:
+  - a slower-envelope / high-pass comparison, or
+  - a more targeted stop-band around the local carrier corridor rather than a
+    generic `1 Hz` high-pass
+
+### Oscillation Filtering Paused In Favor Of Event-Shape Analysis
+
+- The user explicitly asked to stop trying to filter the oscillation out for
+  now and to think about it separately.
+- The immediate next analysis direction is therefore not further carrier
+  suppression.
+- The next useful question is now:
+  - whether the short primitive events can be recognized and detected by
+    shape characteristics,
+  - and whether those short-event shapes are consistent across subjects and
+    work/video conditions.
+- Working assumption for the next step:
+  - keep the current event table as a provisional candidate set,
+  - focus on short-duration events around the putative `~0.5 s` mode,
+  - compare normalized event shapes across subject and condition groups.
+
+### Current Technical Direction
+
+- The analysis is now looking for a frequency band that could be suppressed
+  before or during envelope construction, while preserving the later revisit
+  of the oscillatory signal itself.
+- Longer rolling-SD windows appear to suppress the peaky behavior for some
+  subjects, but not uniformly across all windows.
+- The next useful comparison is likely between:
+  - the current envelope,
+  - a slower envelope construction, and
+  - a raw-signal band-stop / notch-style suppression targeted at the carrier.
+
 ### Waseda ACC Compound-Event Detector And Comparison Figures Refined
 
 - The Waseda quiet-dynamics MATLAB continuation was extended beyond the first
@@ -102,6 +208,53 @@ This document tracks project state, implementation decisions, and validation run
   - boredom
   - frustration
   - or settled sparse-ACC low-animation-regime detection
+
+### Shape-First Primitive-Event Branch
+
+After the oscillation follow-up, the user explicitly paused the filtering
+branch and asked to look at primitive events by waveform shape instead.
+
+The current shape-analysis branch is now:
+
+- fixed-time around event onset, in real seconds
+- no duration warping
+- raw baseline-subtracted shapes and amplitude-normalized shapes shown
+  separately
+- grouped by subject and condition so work/video consistency can be judged
+  directly
+
+This is the next sensible continuation because it tests whether the short
+event candidate has a stable morphology across subjects without forcing the
+time axis to match event duration.
+
+The first rendered comparison suggests:
+
+- the coarse rise-peak-decay motif is shared
+- shape differences mainly live in tail structure and secondary shoulders
+- subject/condition pairs are mostly similar after amplitude normalization,
+  but `sub3` video and `sub4` video are the clearest departures from the
+  flatter subject pairs
+
+### Event-Time Overlay Branch
+
+The user rejected the duration-warped shape comparison and asked for a more
+direct use of the event detector:
+
+- detect event times from the current quiet-event table
+- overlay the detected waveforms per subject and condition
+- compare recording-level averages for the four desk recordings and the four
+  video recordings
+
+This branch keeps the real event time course intact and uses the detector's
+onset times directly instead of inferring shape through duration-normalized
+templates.
+
+The first overlay pass needed one additional cleanup:
+
+- saturated events with `peak_env >= 0.45` were excluded from the waveform
+  comparison because they were dominating the averages
+- the event-time window was extended to `10 s` post onset so return-to-baseline
+  is visible instead of being clipped too early
 
 ### Repository Safety Cleanup And Agent Workflow Reset
 

@@ -98,6 +98,55 @@ Interpretation boundary:
 - the useful output is a proposed phasic sparse-ACC pattern to test in
   better-controlled experiments
 
+## Frequency-Space Follow-Up
+
+The user later noticed a clear oscillatory baseline in the envelope plots and
+asked for frequency-space inspection before further detector changes. That
+shifted the continuation from pure event-threshold tuning to carrier analysis.
+
+Current read from the raw ACC spectra:
+
+- the periodic structure is already present in the raw signal
+- `sub4` is materially different from the other subjects
+- `sub2` is comparatively broadband / less carrier-dominated
+- longer rolling-SD windows suppress the peaky behavior in several windows,
+  but not uniformly
+
+The working interpretation should stay cautious:
+
+- the oscillation is nuisance for event calling regardless of its origin
+- but it remains a signal worth returning to later
+- any suppression should be tested as a preprocessing choice, not treated as
+  an implicit truth about the physiology
+
+The likely next experiment is a comparison between:
+
+- the current envelope
+- a slower envelope
+- a raw-signal band-stop or notch candidate around the carrier
+
+The raw carrier summary suggests the same caveat:
+
+- `sub1` often sits around `0.5-0.7 Hz`
+- `sub3` often sits around `~1.0-1.1 Hz`
+- `sub4` shifts between `~0.6 Hz` and `~1.2 Hz`
+- `sub2` is less obviously dominated by a single carrier
+
+So the best working stop-band is probably not a single universal notch.
+The more realistic candidate is a window-specific or subject-specific
+suppression centered somewhere in the broader `0.5-1.2 Hz` neighborhood,
+tested only as preprocessing and not promoted as a final signal claim.
+
+The user then paused the filtering branch and asked to focus on short
+primitive-event shape instead.
+
+That next branch should be preserved here as:
+
+- use the current event table as provisional
+- focus on the short-duration mode around `~0.5 s`
+- compare normalized short-event shapes across subjects
+- compare those shapes between work and video conditions
+
 ## Current Quantitative Hints
 
 These values are exploratory orientation only, not claim-grade results:
@@ -188,3 +237,19 @@ The main durable memory to preserve is:
 - the best current Waseda story is quiet-state departures plus drift
 - not validated boredom / attention / frustration inference
 - and not simple dense event counting
+
+Current branch after the oscillation discussion:
+
+- stop trying to filter the oscillation out for now
+- keep the carrier as a later signal to track, not something to forget
+- focus next on short primitive-event waveform shape
+- compare fixed-time raw shapes and amplitude-normalized shapes across
+  subjects and work/video conditions
+
+Current correction after the event-overlay pass:
+
+- use detector event times directly
+- stack event waveforms by subject and condition
+- compare recording-level averages for desk and video
+- exclude saturated events with `peak_env >= 0.45`
+- extend the recovery window to `10 s` so return-to-baseline is visible

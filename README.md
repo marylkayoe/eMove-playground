@@ -65,11 +65,24 @@ Current descriptive status:
 - the most useful current Waseda event object is a compound quiet-state
   departure, not a dense derivative spike
 - artifact blanking at the envelope level is now part of the workflow
+- raw ACC frequency-space inspection is now being used to check whether the
+  rhythmic carrier is already present before envelope construction and to
+  decide whether any band-stop suppression should be tested as a
+  preprocessing step
+- the current raw spectra suggest a subject-specific low-frequency carrier
+  corridor rather than one universal tone, so any suppression test will need
+  to be checked window by window
 - current desk vs video comparison figures suggest:
   - longer departures in desk work,
   - larger departure amplitudes in desk work,
   - slower return-to-baseline in desk work,
   - and a plausible short-duration event mode around roughly `0.5 s`
+- the current shape branch compares short events in fixed real time first and
+  then amplitude-normalized, without duration normalization
+- the current overlay branch uses the detector event times directly, stacks
+  event waveforms by subject and condition, and compares pooled desk/video
+  averages after excluding saturated peaks (`peak_env >= 0.45`) and extending
+  the recovery window to `10 s`
 - this remains a protocol-development / candidate-pattern track, not a
   validated psychological inference
 

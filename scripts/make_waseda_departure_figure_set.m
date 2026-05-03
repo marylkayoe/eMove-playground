@@ -171,7 +171,8 @@ title(t, 'Departure Duration And Amplitude Distributions', 'FontSize', 20, 'Font
 subtitle(t, 'Strict artifact-screened departures only.', 'FontSize', 12);
 
 ax1 = nexttile(t);
-histogram(ax1, durations, 24, 'FaceColor', [0.30 0.47 0.65], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax1, 'on');
+durationEdges = linspace(0, 2.0, 26);
+histogram(ax1, durations, durationEdges, 'FaceColor', [0.30 0.47 0.65], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax1, 'on');
 xline(ax1, median(durations, 'omitnan'), 'k-', 'LineWidth', 1.7);
 xlabel(ax1, 'departure duration (s)');
 ylabel(ax1, 'count');
@@ -189,7 +190,8 @@ grid(ax2, 'on');
 xlim(ax2, [0 0.05]);
 
 ax3 = nexttile(t);
-histogram(ax3, returns, 24, 'FaceColor', [0.33 0.64 0.33], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax3, 'on');
+returnEdges = linspace(0, 5.0, 26);
+histogram(ax3, returns, returnEdges, 'FaceColor', [0.33 0.64 0.33], 'EdgeColor', 'w', 'EdgeAlpha', 0.35); hold(ax3, 'on');
 xline(ax3, median(returns, 'omitnan'), 'k-', 'LineWidth', 1.7);
 xlabel(ax3, 'return-to-baseline time (s)');
 title(ax3, sprintf('n=%d\nmedian=%.3f', numel(returns), median(returns, 'omitnan')));

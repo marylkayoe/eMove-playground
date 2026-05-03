@@ -92,6 +92,55 @@ Do not claim a figure is final unless:
 - text labels do not overlap traces,
 - exported PDF/PNG has been generated successfully.
 
+## MATLAB coding style
+
+This is a MATLAB-first repository. Use MATLAB for analysis, plotting, and tests unless explicitly told otherwise.
+
+Prefer readable, explicit MATLAB over compact or clever code.
+
+Use camelCase for variable and function names.
+
+Use `index` rather than `idx` in variable names.
+
+Do not use `ifelse`; MATLAB does not support it.
+
+Prefer `inputParser` for public-facing function options unless there is a clear reason to use another pattern.
+
+For functions intended for reuse:
+- include a short help block,
+- describe inputs and outputs,
+- document important assumptions,
+- keep side effects explicit.
+
+For scripts:
+- start with a short purpose statement,
+- define configuration near the top,
+- avoid hard-coded absolute paths unless explicitly needed,
+- write exploratory outputs only under `scratch/`.
+
+For helper functions used only within one file:
+- define them as local functions at the end of the file,
+- prefix local helper names with `LF_`.
+
+Do not optimize prematurely. Prioritize:
+1. correctness,
+2. readability,
+3. design clarity,
+4. speed only when needed.
+5. do not create local helpers for single-use code unless it improves readability.
+
+When modifying existing MATLAB code:
+- preserve existing behavior unless explicitly asked to change it,
+- make small, reviewable edits,
+- avoid broad rewrites,
+- explain any change in data structure or output fields.
+
+When adding new analysis code:
+- prefer table/struct outputs with clear field names,
+- avoid hidden global state,
+- check input dimensions explicitly,
+- fail with informative error messages.
+
 ## Git safety
 
 Never run broad staging commands such as:

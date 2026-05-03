@@ -218,23 +218,29 @@ returns = str2double(string(strictBursts.return_time_sec));
 returns = returns(~isnan(returns));
 
 ax1 = nexttile(t);
-histogram(ax1, durations, 24, 'FaceColor', [0.30 0.47 0.65], 'EdgeAlpha', 0.2);
+durationEdges = linspace(0, 2.0, 26);
+histogram(ax1, durations, durationEdges, 'FaceColor', [0.30 0.47 0.65], 'EdgeAlpha', 0.2);
 xlabel(ax1, 'departure duration (s)');
 ylabel(ax1, 'count');
 title(ax1, sprintf('n=%d\nmedian=%.3f', numel(durations), median(durations, 'omitnan')));
 grid(ax1, 'on');
+xlim(ax1, [0 2.0]);
 
 ax2 = nexttile(t);
-histogram(ax2, amplitudes, 24, 'FaceColor', [0.96 0.52 0.13], 'EdgeAlpha', 0.2);
+amplitudeEdges = linspace(0, 0.05, 21);
+histogram(ax2, amplitudes, amplitudeEdges, 'FaceColor', [0.96 0.52 0.13], 'EdgeAlpha', 0.2);
 xlabel(ax2, 'departure amplitude above baseline');
 title(ax2, sprintf('n=%d\nmedian=%.3f', numel(amplitudes), median(amplitudes, 'omitnan')));
 grid(ax2, 'on');
+xlim(ax2, [0 0.05]);
 
 ax3 = nexttile(t);
-histogram(ax3, returns, 24, 'FaceColor', [0.33 0.64 0.33], 'EdgeAlpha', 0.2);
+returnEdges = linspace(0, 5.0, 26);
+histogram(ax3, returns, returnEdges, 'FaceColor', [0.33 0.64 0.33], 'EdgeAlpha', 0.2);
 xlabel(ax3, 'return-to-baseline time (s)');
 title(ax3, sprintf('n=%d\nmedian=%.3f', numel(returns), median(returns, 'omitnan')));
 grid(ax3, 'on');
+xlim(ax3, [0 5.0]);
 text(ax1, 0.0, -0.24, 'These tighter histograms use only strict artifact-screened departures, with x-ranges chosen to show the informative part of the distribution rather than the extreme tail.', ...
     'Units', 'normalized', 'FontSize', 9, 'Color', [0.35 0.35 0.35]);
 end

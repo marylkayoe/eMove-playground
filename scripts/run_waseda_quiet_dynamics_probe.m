@@ -37,15 +37,24 @@ for iRec = 1:numel(recordings)
             end
             windowEnv = envSmooth(idxs);
             windowRate = envRate(idxs);
-            envCenter = median(windowEnv);
-            envMad = localMedianAbsDeviation(windowEnv, envCenter);
-            stableBand = opts.stableMadMultiplier * envMad;
-            if stableBand <= 0
-                stableBand = max(1e-9, iqr(windowEnv));
+            artifactMask = windowEnv >= opts.artifactEnvThreshold;
+            stableMask = localStableReferenceMask(windowEnv, artifactMask, opts);
+            stableEnv = windowEnv(stableMask);
+            if isempty(stableEnv)
+                stableEnv = windowEnv(~artifactMask);
             end
-            burstThreshold = max(quantile(windowRate, opts.burstQuantile), ...
-                median(windowRate) + opts.burstMadMultiplier * localMedianAbsDeviation(windowRate, median(windowRate)));
-            bursts = localDetectRateBursts(series, envSmooth, envRate, idxs, burstThreshold, opts);
+            if isempty(stableEnv)
+                stableEnv = windowEnv;
+            end
+            envCenter = median(stableEnv);
+            envMad = localMedianAbsDeviation(stableEnv, envCenter);
+            stableUpper = quantile(stableEnv, opts.stableUpperQuantile);
+            stableBand = max(stableUpper - envCenter, opts.stableMadMultiplier * envMad);
+            if stableBand <= 0
+                stableBand = max(1e-9, iqr(stableEnv));
+            end
+            burstThreshold = envCenter + stableBand;
+            bursts = localDetectStableBandDepartures(series, envSmooth, envRate, idxs, envCenter, stableBand, artifactMask, opts);
             currentEpochRows = localBuildEpochRows(series, window, startSec, endSec, envSmooth, envRate, ...
                 envCenter, stableBand, bursts, opts);
             epochRows = localAppendStructRows(epochRows, currentEpochRows);
@@ -91,6 +100,12 @@ p.addParameter('burstMadMultiplier', 6.0, @isscalar);
 p.addParameter('burstMergeGapSec', 0.30, @isscalar);
 p.addParameter('burstContextSec', 5.0, @isscalar);
 p.addParameter('returnWindowSec', 12.0, @isscalar);
+p.addParameter('minBurstDurationSec', 0.01, @isscalar);
+p.addParameter('compoundMergeGapSec', 0.10, @isscalar);
+p.addParameter('stableGapToleranceSec', 0.05, @isscalar);
+p.addParameter('artifactEnvThreshold', 0.95, @isscalar);
+p.addParameter('stableReferenceQuantile', 0.80, @isscalar);
+p.addParameter('stableUpperQuantile', 0.95, @isscalar);
 p.parse(varargin{:});
 opts = p.Results;
 opts.manifestPath = char(opts.manifestPath);
@@ -174,30 +189,39 @@ end
 madValue = median(abs(values - centerValue));
 end
 
-function bursts = localDetectRateBursts(series, env, envRate, idxs, threshold, opts)
+function stableMask = localStableReferenceMask(windowEnv, artifactMask, opts)
+stableMask = ~artifactMask;
+if ~any(stableMask)
+    stableMask = true(size(windowEnv));
+    return;
+end
+cutoff = quantile(windowEnv(~artifactMask), opts.stableReferenceQuantile);
+stableMask = stableMask & (windowEnv <= cutoff);
+if ~any(stableMask)
+    stableMask = ~artifactMask;
+end
+end
+
+function bursts = localDetectStableBandDepartures(series, env, envRate, idxs, envCenter, stableBand, windowArtifactMask, opts)
 mask = false(size(series.times_sec));
-mask(idxs) = envRate(idxs) >= threshold;
-mask = localFillShortFalseGaps(series.times_sec, mask, opts.burstMergeGapSec);
+windowMask = env(idxs) > (envCenter + stableBand);
+windowMask(windowArtifactMask) = false;
+mask(idxs) = windowMask;
+mask = localFillShortFalseGaps(series.times_sec, mask, opts.stableGapToleranceSec);
 runs = localMaskToRuns(mask);
-bursts = struct([]);
+rawBursts = struct([]);
 for iRun = 1:size(runs, 1)
     startIdx = runs(iRun, 1);
     endIdx = runs(iRun, 2);
-    [~, peakOffset] = max(envRate(startIdx:endIdx));
+    [~, peakOffset] = max(env(startIdx:endIdx));
     peakIdx = startIdx + peakOffset - 1;
-    baselineIdxs = idxs(series.times_sec(idxs) >= series.times_sec(peakIdx) - opts.burstContextSec & ...
-        series.times_sec(idxs) < series.times_sec(peakIdx));
-    if isempty(baselineIdxs)
-        baselineEnv = env(peakIdx);
-    else
-        baselineEnv = median(env(baselineIdxs));
-    end
+    baselineEnv = envCenter;
     envDelta = max(0, env(peakIdx) - baselineEnv);
     areaDelta = 0;
     for idx = startIdx:endIdx
         areaDelta = areaDelta + max(0, env(idx) - baselineEnv) * localDt(series.times_sec, idx);
     end
-    returnTimeSec = localEstimateReturnTime(series.times_sec, env, peakIdx, baselineEnv, envDelta, opts.returnWindowSec);
+    returnTimeSec = localEstimateReturnTime(series.times_sec, env, peakIdx, baselineEnv, envDelta, opts.returnWindowSec, stableBand);
     row = struct();
     row.start_idx = startIdx;
     row.end_idx = endIdx;
@@ -212,8 +236,11 @@ for iRun = 1:size(runs, 1)
     row.env_delta = envDelta;
     row.area_env_delta = areaDelta;
     row.return_time_sec = returnTimeSec;
-    bursts = localAppendStructRows(bursts, row);
+    rawBursts = localAppendStructRows(rawBursts, row);
 end
+
+bursts = localMergeBurstsWithoutRecovery(rawBursts, env, envRate, series.times_sec, stableBand, opts);
+bursts = bursts(arrayfun(@(burst) burst.duration_sec >= opts.minBurstDurationSec, bursts));
 end
 
 function dt = localDt(timesSec, idx)
@@ -228,12 +255,12 @@ else
 end
 end
 
-function returnTimeSec = localEstimateReturnTime(timesSec, env, peakIdx, baselineEnv, envDelta, returnWindowSec)
+function returnTimeSec = localEstimateReturnTime(timesSec, env, peakIdx, baselineEnv, envDelta, returnWindowSec, stableBand)
 if envDelta <= 0
     returnTimeSec = 0;
     return;
 end
-target = baselineEnv + 0.25 * envDelta;
+target = baselineEnv + stableBand;
 peakTime = timesSec(peakIdx);
 candidateIdxs = find(timesSec >= peakTime & timesSec <= peakTime + returnWindowSec);
 returnTimeSec = NaN;
@@ -244,6 +271,85 @@ for iIdx = 1:numel(candidateIdxs)
         return;
     end
 end
+end
+
+function burstsOut = localMergeBurstsWithoutRecovery(burstsIn, env, envRate, timesSec, stableBand, opts)
+if isempty(burstsIn)
+    burstsOut = burstsIn;
+    return;
+end
+
+burstsOut = burstsIn(1);
+for iBurst = 2:numel(burstsIn)
+    currentBurst = burstsIn(iBurst);
+    previousBurst = burstsOut(end);
+    if localShouldMergeBursts(previousBurst, currentBurst, env, timesSec, stableBand, opts)
+        mergedBurst = localBuildMergedBurst(previousBurst, currentBurst, env, envRate, timesSec, stableBand, opts);
+        burstsOut(end) = mergedBurst;
+    else
+        burstsOut(end + 1) = currentBurst; %#ok<AGROW>
+    end
+end
+end
+
+function shouldMerge = localShouldMergeBursts(firstBurst, secondBurst, env, timesSec, stableBand, opts)
+gapSec = secondBurst.start_sec - firstBurst.end_sec;
+if gapSec <= opts.compoundMergeGapSec
+    shouldMerge = true;
+    return;
+end
+
+if secondBurst.start_idx <= firstBurst.peak_idx
+    shouldMerge = true;
+    return;
+end
+
+betweenIdx = firstBurst.peak_idx:secondBurst.peak_idx;
+if isempty(betweenIdx)
+    shouldMerge = false;
+    return;
+end
+
+recoveryThreshold = min(firstBurst.baseline_env, secondBurst.baseline_env) + stableBand;
+segment = env(betweenIdx) <= recoveryThreshold;
+segmentGap = localLongestTrueRunDuration(timesSec(betweenIdx), segment);
+shouldMerge = segmentGap < opts.stableGapToleranceSec;
+end
+
+function mergedBurst = localBuildMergedBurst(firstBurst, secondBurst, env, envRate, timesSec, stableBand, opts)
+startIdx = firstBurst.start_idx;
+endIdx = secondBurst.end_idx;
+[~, peakOffset] = max(env(startIdx:endIdx));
+peakIdx = startIdx + peakOffset - 1;
+
+baselineStartTime = timesSec(peakIdx) - opts.burstContextSec;
+baselineIdx = find(timesSec >= baselineStartTime & timesSec < timesSec(peakIdx));
+if isempty(baselineIdx)
+    baselineEnv = min(firstBurst.baseline_env, secondBurst.baseline_env);
+else
+    baselineEnv = min(median(env(baselineIdx)), min(firstBurst.baseline_env, secondBurst.baseline_env));
+end
+
+envDelta = max(0, env(peakIdx) - baselineEnv);
+areaDelta = 0;
+for idx = startIdx:endIdx
+    areaDelta = areaDelta + max(0, env(idx) - baselineEnv) * localDt(timesSec, idx);
+end
+
+mergedBurst = struct();
+mergedBurst.start_idx = startIdx;
+mergedBurst.end_idx = endIdx;
+mergedBurst.peak_idx = peakIdx;
+mergedBurst.start_sec = timesSec(startIdx);
+mergedBurst.end_sec = timesSec(endIdx);
+mergedBurst.peak_sec = timesSec(peakIdx);
+mergedBurst.duration_sec = max(0, timesSec(endIdx) - timesSec(startIdx));
+mergedBurst.peak_rate = envRate(peakIdx);
+mergedBurst.peak_env = env(peakIdx);
+mergedBurst.baseline_env = baselineEnv;
+mergedBurst.env_delta = envDelta;
+mergedBurst.area_env_delta = areaDelta;
+mergedBurst.return_time_sec = localEstimateReturnTime(timesSec, env, peakIdx, baselineEnv, envDelta, opts.returnWindowSec, stableBand);
 end
 
 function rows = localBuildEpochRows(series, window, startSec, endSec, env, envRate, envCenter, stableBand, bursts, opts)
@@ -538,5 +644,20 @@ while i <= numel(mask)
     end
     runs(end + 1, :) = [i, j - 1]; %#ok<AGROW>
     i = j;
+end
+end
+
+function durationSec = localLongestTrueRunDuration(timesSec, mask)
+durationSec = 0;
+runs = localMaskToRuns(mask);
+for iRun = 1:size(runs, 1)
+    startIdx = runs(iRun, 1);
+    endIdx = runs(iRun, 2);
+    if endIdx <= startIdx
+        runDuration = 0;
+    else
+        runDuration = max(0, timesSec(endIdx) - timesSec(startIdx));
+    end
+    durationSec = max(durationSec, runDuration);
 end
 end

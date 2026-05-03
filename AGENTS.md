@@ -1,15 +1,43 @@
+cat > AGENTS.md <<'EOF'
 # Agent instructions for this repository
 
-Do not run broad staging commands such as `git add .`, `git add -A`, or `git add --` unless explicitly asked.
+This is a MATLAB-first repository. Use MATLAB for analysis, plotting, and tests unless explicitly told otherwise.
 
-Do not add generated outputs, virtual environments, raw data, cache folders, or local analysis artifacts to Git.
+Python may be used only as optional helper tooling for presentation/export polish when explicitly approved. Do not install Python packages, create virtual environments, or add Python plotting scripts unless the user explicitly asks.
 
-Before staging files, always show:
-- `git status --short`
-- the exact files proposed for staging
-- any files larger than 20 MB
+If Python is necessary, use only the ignored local environment `.venv_fig/`. Do not install packages globally.
+
+## Generated files and scratch workflow
+
+Use `scratch/` for exploratory or intermediate generated files.
+
+Exploratory agent work should write temporary figures, logs, CSVs, scripts, and intermediate analysis files under a task-specific folder, for example:
+
+`scratch/taskName_YYYYMMDD/`
+
+Do not write exploratory outputs directly into:
+
+- `scripts/`
+- `docs/`
+- `figures/`
+- `NCMposter/`
+- `resources/`
+- `outputs/`
+
+unless explicitly asked.
+
+At the end of exploratory work, report:
+
+1. all files created,
+2. which files are worth keeping,
+3. which files are intermediate and safe to delete,
+4. which files, if any, should be promoted to tracked folders.
+
+Do not promote, stage, move, or delete files unless explicitly asked.
 
 Generated or local-only paths include:
+
+- `scratch/`
 - `outputs/`
 - `results/`
 - `cache/`
@@ -17,57 +45,109 @@ Generated or local-only paths include:
 - `temp/`
 - `.venv/`
 - `.venv_*/`
+- `.venv_fig/`
+- `venv/`
+- `env/`
 - `.mplconfig/`
 - `*.mat`, except explicitly curated files in `resources/templates/`
 
-Generated or local-only paths include:
+Do not add generated outputs, virtual environments, raw data, cache folders, or local analysis artifacts to Git.
 
-- scratch/
-- outputs/
-- results/
-- cache/
-- tmp/
-- temp/
-- .venv/
-- .venv_*/
-- .mplconfig/
-- *.mat, except explicitly curated files in resources/templates/
-Exploratory agent work should write temporary figures, logs, CSVs, scripts, and intermediate analysis files under a task-specific folder in `scratch/`, for example:
+## MATLAB figure layout policy
 
-`scratch/taskName_YYYYMMDD/`
+Use MATLAB figure layout tools before manual positioning.
 
-At the end of the task, report all created files and recommend which, if any, should be promoted to tracked locations such as `scripts/`, `docs/`, `figures/`, `resources/`, or `NCMposter/`.
+For multi-panel figures:
 
-Do not promote, stage, move, or delete files unless explicitly asked.
+- use `tiledlayout` and `nexttile`,
+- avoid manual `axes('Position', ...)` unless explicitly requested,
+- set `TileSpacing` and `Padding` explicitly,
+- use shared labels with `xlabel(tiledLayoutHandle, ...)` and `ylabel(tiledLayoutHandle, ...)` when appropriate.
+
+For dense traces:
+
+- do not place text labels directly on top of traces,
+- prefer legends outside the axes,
+- use small multiples instead of overplotting too many traces,
+- use annotations only after checking axis limits and data ranges,
+- if labels would collide, omit direct labels and provide a legend or separate key.
+
+For categorical/group plots:
+
+- prefer table-driven plotting,
+- use consistent group order,
+- avoid manually tuned x/y offsets unless documented.
+
+For export:
+
+- first render to `scratch/<taskName>_YYYYMMDD/`,
+- inspect whether labels, legends, and traces overlap,
+- revise layout before proposing promotion to tracked folders.
+
+Do not claim a figure is final unless:
+
+- axis labels are readable,
+- legends do not cover data,
+- panel labels do not collide with axes content,
+- text labels do not overlap traces,
+- exported PDF/PNG has been generated successfully.
+
+## Git safety
+
+Never run broad staging commands such as:
+
+- `git add .`
+- `git add -A`
+- `git add --`
+
+unless explicitly asked.
 
 Prefer selective staging:
+
 `git add path/to/file1 path/to/file2`
 
-Never run cleanup/destructive commands such as `git clean`, `git reset --hard`, `git rm`, `git gc`, or history rewrite commands unless explicitly asked.
+Before staging files, always show:
 
-cat >> AGENTS.md <<'EOF'
+- `git status --short`,
+- the exact files proposed for staging,
+- any files larger than 20 MB.
+
+Never run cleanup/destructive commands such as:
+
+- `git clean`
+- `git reset --hard`
+- `git rm`
+- `git gc`
+- history rewrite commands
+
+unless explicitly asked.
 
 ## Standard maintenance commands requested by the user
 
-When the user asks to "cleanup", do not interpret this as permission to delete files immediately.
+When the user asks to “cleanup”, do not interpret this as permission to delete files immediately.
 
 Cleanup means:
+
 1. Inspect `git status --short`.
 2. Identify generated, temporary, duplicate, cache, local-data, or intermediate files.
 3. Check for large files with:
+
    `find . -path './.git' -prune -o -type f -size +20M -print`
+
 4. Report which files appear safe to delete, move, ignore, or keep.
 5. Ask before deleting, moving, or running destructive commands.
 6. Never run `git clean`, `rm`, `git reset --hard`, or `git rm` unless explicitly instructed.
 
-When the user asks to "document", this means:
+When the user asks to “document”, this means:
+
 1. Update relevant Markdown documentation, development logs, handoff notes, or README sections.
 2. Prefer concise, factual notes over broad claims.
 3. Include what changed, why it changed, and how to run or reproduce the relevant step.
 4. If new generated files were created, document where they are and whether they are temporary or curated.
 5. Do not invent conclusions beyond what the code/results support.
 
-When the user asks to "commit", this means:
+When the user asks to “commit”, this means:
+
 1. Run `git status --short`.
 2. Show the exact files proposed for staging.
 3. Check for proposed files larger than 20 MB.
@@ -76,13 +156,15 @@ When the user asks to "commit", this means:
 6. Use a concise commit message describing the actual change.
 7. Do not commit generated scratch files, virtual environments, raw data, cache files, or local-only outputs.
 
-When the user asks to "push", this means:
+When the user asks to “push”, this means:
+
 1. Confirm the working tree state with `git status --short`.
 2. Confirm the recent commit with `git log --oneline -3`.
 3. Run `git push`.
 4. Report whether the push succeeded.
 
-When the user asks to "cleanup, document, commit, and push", perform the sequence in this order:
+When the user asks to “cleanup, document, commit, and push”, perform the sequence in this order:
+
 1. Inspect repository status and generated files.
 2. Propose cleanup actions; do not delete without explicit permission.
 3. Update documentation if needed.

@@ -29,6 +29,30 @@ Current analysis run scripts:
 - Presentation-oriented DISGUST vs NEUTRAL panel export:
   `scripts/make_disgust_neutral_panels.m`
 
+## Waseda ACC (Protocol-Development Track)
+
+This repository now also carries a MATLAB-first continuation of the Waseda
+standing accelerometer pilot as a separate protocol-development track.
+
+Current scope:
+- chest ACC quiet-state departure detection and summary
+- inter-event interval and departure-shape summaries
+- scratch-first figure rendering for candidate-pattern inspection
+
+Current tracked entry points:
+- repo-local manifest:
+  - `resources/waseda_acc/dataset_manifest.json`
+- quiet-dynamics probe:
+  - `scripts/run_waseda_quiet_dynamics_probe.m`
+- candidate-pattern summary figure:
+  - `scripts/make_waseda_candidate_pattern_summary.m`
+- focused departure figure set:
+  - `scripts/make_waseda_departure_figure_set.m`
+
+Current output policy:
+- generated Waseda outputs should go to `scratch/waseda_acc_matlab/...`
+- do not commit probe CSVs or rendered figures unless explicitly promoted
+
 ## Interactive Exploration Tools
 - Micromovement example browser:
   - launcher: `scripts/launch_micromovement_example_browser.m`

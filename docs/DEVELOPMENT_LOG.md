@@ -4,6 +4,48 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-05-03
 
+### Waseda ACC MATLAB Port Started In This Repository
+
+- Added a repo-local Waseda manifest:
+  - [dataset_manifest.json](/Users/yoe/Documents/REPOS/eMove-playground/resources/waseda_acc/dataset_manifest.json)
+- Added MATLAB helpers for:
+  - Waseda manifest loading
+  - sensor discovery and CSV concatenation
+  - note-window parsing
+  - dynamic-envelope computation
+- Added a MATLAB port of the quiet-dynamics probe:
+  - [run_waseda_quiet_dynamics_probe.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_waseda_quiet_dynamics_probe.m)
+- Added a MATLAB summary-figure script that continues from the current
+  candidate-pattern result:
+  - [make_waseda_candidate_pattern_summary.m](/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_waseda_candidate_pattern_summary.m)
+- Default output policy for these scripts is scratch-first:
+  - `scratch/waseda_acc_matlab/...`
+
+### Waseda ACC State Imported From Separate Collaboration Thread
+
+- Read the external handoff note:
+  - `/Users/yoe/Documents/REPOS/eMove-Collaboration/private/yoe_codex/analysis_thread_handoff_waseda_2026-05-03.md`
+- Confirmed that the current Waseda candidate-pattern work does **not** yet
+  live in this repository as local scripts or outputs.
+- Added a repository-local context note so this worktree now carries the same
+  scientific state and interpretation boundary:
+  - [HANDOFF_WASEDA_ACC_2026-05-03.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/HANDOFF_WASEDA_ACC_2026-05-03.md)
+
+### Imported Waseda Read
+
+- The retained Waseda framing is currently:
+  - subject-specific quiet operating band
+  - transient departures from that band
+  - recovery / return-to-baseline
+  - short-gap clustering / inter-event spacing
+  - minute-scale drift across the block
+- This should remain candidate-pattern / protocol-development work only.
+- Do **not** currently promote it as validated evidence for:
+  - attention
+  - boredom
+  - frustration
+  - or settled sparse-ACC low-animation-regime detection
+
 ### Repository Safety Cleanup And Agent Workflow Reset
 
 - A repository-maintenance pass was completed after Codex Desktop triggered

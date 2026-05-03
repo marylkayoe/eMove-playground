@@ -1,0 +1,147 @@
+{
+  "manifest_version": "2026-04-26.1",
+  "status": "active protocol-development manifest",
+  "raw_data_boundary": {
+    "canonical_root": "/Users/yoe/Documents/DATA/Waseda-ACC",
+    "commit_raw_files": false,
+    "allowed_in_repo": [
+      "manifests",
+      "analysis definitions",
+      "derived aggregate summaries",
+      "figures that do not expose raw participant rows"
+    ]
+  },
+  "default_feature_definition": {
+    "feature_id": "dynamic_magnitude_v0",
+    "description": "Magnitude of centered rolling per-axis acceleration standard deviations.",
+    "formula": "sqrt(rolling_sd_x^2 + rolling_sd_y^2 + rolling_sd_z^2)",
+    "rolling_window_sec": 0.5,
+    "claim_status": "exploratory"
+  },
+  "sessions": [
+    {
+      "session_id": "260417",
+      "date": "2026-04-17",
+      "source_note": "/Users/yoe/Documents/DATA/Waseda-ACC/260417/data_collection.txt",
+      "subject_scope": "single currently unnamed participant/session",
+      "sensor_map": {
+        "WTAcc 1": {
+          "placement": "chest",
+          "confidence": "from acquisition note"
+        },
+        "WTAcc 2": {
+          "placement": "left forearm",
+          "confidence": "from acquisition note"
+        }
+      },
+      "recordings": [
+        {
+          "recording_id": "260417_work_stand",
+          "relative_dir": "260417/work",
+          "subject_id": "sub1",
+          "condition": "desk_work_stand",
+          "note_window": "16:25-16:35",
+          "chunk_semantics": "_0 and _1 are chunks of the same condition, not separate trials",
+          "file_patterns": {
+            "chest": "*WTAcc 1*.csv",
+            "forearm_left": "*WTAcc 2*.csv"
+          }
+        },
+        {
+          "recording_id": "260417_videos_stand",
+          "relative_dir": "260417/videos",
+          "subject_id": "sub1",
+          "condition": "watching_videos_stand",
+          "note_window": "16:45-16:55",
+          "chunk_semantics": "_0 and _1 are chunks of the same condition, not separate trials",
+          "file_patterns": {
+            "chest": "*WTAcc 1*.csv",
+            "forearm_left": "*WTAcc 2*.csv"
+          },
+          "known_observation": "second video chunk has substantially more chest activity than first in exploratory inspection"
+        }
+      ]
+    },
+    {
+      "session_id": "260421",
+      "date": "2026-04-21",
+      "source_note": "/Users/yoe/Documents/DATA/Waseda-ACC/260421/data_collection.txt",
+      "subject_scope": "subjects 2, 3, and 4",
+      "sensor_map": {
+        "WTAcc 1": {
+          "placement": "chest",
+          "confidence": "from acquisition note"
+        },
+        "WTAcc 2": {
+          "placement": "left forearm",
+          "confidence": "from acquisition note"
+        }
+      },
+      "recordings": [
+        {
+          "recording_id": "260421_sub2",
+          "relative_dir": "260421/sub2",
+          "subject_id": "sub2",
+          "condition_windows": [
+            {
+              "condition": "desk_work_stand",
+              "note_window": "16:00-16:10"
+            },
+            {
+              "condition": "watching_videos_stand",
+              "note_window": "16:19-16:29"
+            }
+          ],
+          "file_patterns": {
+            "chest": "*WTAcc 1*.csv",
+            "forearm_left": "*WTAcc 2*.csv"
+          }
+        },
+        {
+          "recording_id": "260421_sub3",
+          "relative_dir": "260421/sub3",
+          "subject_id": "sub3",
+          "condition_windows": [
+            {
+              "condition": "watching_videos_stand",
+              "note_window": "16:41-16:51"
+            },
+            {
+              "condition": "desk_work_stand",
+              "note_window": "16:52-17:02"
+            }
+          ],
+          "file_patterns": {
+            "chest": "*WTAcc 1*.csv",
+            "forearm_left": "*WTAcc 2*.csv"
+          }
+        },
+        {
+          "recording_id": "260421_sub4",
+          "relative_dir": "260421/sub4",
+          "subject_id": "sub4",
+          "condition_windows": [
+            {
+              "condition": "watching_videos_stand",
+              "note_window": "17:07-17:17"
+            },
+            {
+              "condition": "desk_work_stand",
+              "note_window": "17:20-17:30"
+            }
+          ],
+          "file_patterns": {
+            "chest": "*WTAcc 1*.csv",
+            "forearm_left": "*WTAcc 2*.csv"
+          }
+        }
+      ]
+    }
+  ],
+  "open_metadata_needs": [
+    "verify sensor placement per future session",
+    "capture exact event/task markers rather than minute-level condition windows",
+    "record posture changes, talking, experimenter intervention, phone use, and interruptions",
+    "request repeated blocks and longer rest/low-demand windows"
+  ]
+}

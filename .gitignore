@@ -24,3 +24,6 @@ results/
 cache/
 tmp/
 temp/
+
+# Agent scratch space
+scratch/

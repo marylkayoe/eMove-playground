@@ -1,5 +1,111 @@
 # Signal Analysis Agent Journal
 
+## 2026-05-06 12:32:49 JST
+
+- Read the current IMU preprocessing pipeline carefully:
+  - [prepareAccelerometerQuaternionData.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/prepareAccelerometerQuaternionData.m)
+  - [removeGravityFromPreparedImu.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/removeGravityFromPreparedImu.m)
+  - [computeAccelerometerMotionEnvelope.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/computeAccelerometerMotionEnvelope.m)
+- Current conceptual pipeline:
+  - raw acceleration + raw quaternion
+  - prepare acceleration/quaternion data
+  - remove gravity using quaternion-derived orientation
+  - bandpass gravity-corrected acceleration by axis
+  - compute vector magnitude
+  - compute 1 s RMS envelope
+- What each stage currently does:
+  - `prepareAccelerometerQuaternionData` reconstructs the within-file time
+    base from sample index and `sampleRateHz`, converts acceleration to `g`
+    if needed, converts quaternions to internal `[w x y z]` order,
+    normalizes quaternion rows, corrects quaternion sign flips, detects only
+    clearly bad acceleration/quaternion samples, and interpolates only short
+    bad runs.
+  - `removeGravityFromPreparedImu` keeps gravity subtraction as its own
+    stage, rotates world gravity `[0 0 1]` into the sensor frame with the
+    prepared quaternion, and defines `acc.linear` as IMU-style
+    gravity-corrected acceleration.
+  - `computeAccelerometerMotionEnvelope` takes gravity-corrected
+    acceleration, handles only remaining extreme artefacts, bandpass-filters
+    each axis, then computes filtered vector magnitude and a local RMS
+    movement envelope.
+- Important preserved reasoning:
+  - The exported `timeSec` is not trusted for sample-by-sample processing
+    because it can be quantized and contain repeated values. Within-file
+    filtering, interpolation, and windowing should continue to use
+    reconstructed time from sample index and sampling rate. The exported
+    time is useful as QC only.
+  - Quaternion normalization is necessary because rotation math assumes unit
+    quaternions. Mild norm drift can often be repaired by normalization,
+    while very bad norms should stay marked as bad data.
+  - Quaternion sign-flip correction is necessary because `q` and `-q`
+    encode the same orientation. If sign representation is allowed to jump,
+    interpolation and step-size QC can report artificial discontinuities.
+  - Gravity removal should remain a separate stage because it is a distinct
+    physical operation with a convention choice that must stay inspectable.
+    The current Shimmer-like convention appears to be `UseConjugate = false`
+    because that choice makes quiet periods approach zero after subtraction,
+    whereas the wrong convention leaves obviously inflated residual
+    magnitude.
+  - Filtering must happen before magnitude. Magnitude is nonlinear and
+    rectifies fluctuations upward, so computing magnitude first would
+    prevent positive and negative components from cancelling and would bias
+    the downstream envelope.
+  - The RMS envelope is useful because it turns 3-axis band-limited
+    acceleration into a readable local movement-energy trace for first-pass
+    analysis and proposal figures. It is interpretable as a smoothed,
+    approximately 1 s movement-intensity signal rather than a behavioural
+    classifier.
+- Pragmatic defaults, not biological truths:
+  - `QuaternionJumpMaxDeg = 60` is a bad-data detector, not a statement
+    about plausible body kinematics. Lower thresholds were too aggressive at
+    `31.25 Hz`.
+  - `AccelerationJumpMaxGPerSample = 0.5` is a conservative hard threshold
+    for sensor-glitch detection. The MAD-based threshold is useful QC but
+    should not be the default mask because quiet files can make MAD too
+    small and mislabel normal movement.
+  - `FrequencyBandHz = [0.2 10]` and `EnvelopeWindowSeconds = 1.0` are
+    working defaults for readable proposal figures and first-pass movement
+    summaries, not final inferential constants.
+  - `ArtefactMagnitudeMaxG = 2.0` in the envelope stage is also a pragmatic
+    protection against extreme residual samples dominating the bandpass and
+    RMS output.
+- Assumptions that should be revisited before final quantitative analysis:
+  - verify acceleration unit assumptions and quiet-period magnitude near
+    `1 g` before gravity removal
+  - re-check quaternion direction convention on more than one recording and
+    posture/movement context
+  - test sensitivity of results to the chosen bandpass and RMS window
+  - decide explicitly how to separate sensor artefact handling from gross
+    movement or micromotion classification
+  - inspect how interpolation of short bad runs affects any later summary
+    statistics
+  - check whether `31.25 Hz` sampling is sufficient for the highest
+    frequencies of interest in the final scientific question
+- Things that should not be optimized away or silently changed:
+  - reconstructed analysis time should not quietly be replaced with raw
+    exported `timeSec`
+  - quaternion row normalization and sign-flip correction should not be
+    removed as if they were cosmetic
+  - gravity removal should not be merged implicitly into unrelated steps
+  - the quaternion convention choice (`UseConjugate`) should not be flipped
+    without a QC demonstration
+  - magnitude should not be computed before bandpass filtering
+  - acceleration-jump MAD thresholds should not become the default bad-data
+    mask
+  - `acc.linear` should continue to be described clearly as
+    gravity-corrected acceleration to avoid terminology drift
+  - the current output interpretation should stay explicit:
+    `imuEnvelope.envelope.rms` is a 1 s RMS envelope of 0.2-10 Hz
+    quaternion gravity-corrected acceleration
+- Reflection:
+  - the current code is already making an important conceptual distinction
+    between sensor QC, physical gravity correction, and downstream movement
+    summarization
+  - that separation is worth preserving because otherwise pragmatic choices
+    could be mistaken for biological conclusions
+- Files changed:
+  - `SIGNAL_ANALYSIS_AGENT_JOURNAL.md`
+
 ## 2026-05-06 10:15:12 JST
 
 - Revised the WTAcc import and conversion code so the MATLAB files now keep

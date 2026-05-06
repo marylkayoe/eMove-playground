@@ -224,11 +224,10 @@ end
 
 function figureHandle = localPlotSummaryFigure(waveforms, eventTable, peakValues, peakWidthsSec, timeSec, figureTitle)
 waveformMatrix = waveforms.waveformMatrix;
-relativeTimeMatrixSec = waveforms.relativeTimeMatrixSec;
 alignedPeakRow = waveforms.alignedPeakRow;
 
-if ~isempty(relativeTimeMatrixSec)
-    xValues = mean(relativeTimeMatrixSec, 2, 'omitnan');
+if isfield(waveforms, 'relativeTimeSec') && ~isempty(waveforms.relativeTimeSec)
+    xValues = waveforms.relativeTimeSec;
     xLabelText = 'time relative to peak';
 else
     xValues = ((1:size(waveformMatrix, 1)) - alignedPeakRow).';

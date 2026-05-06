@@ -1,5 +1,55 @@
 # Signal Analysis Agent Journal
 
+## 2026-05-06 20:01:12 JST
+
+- Built the current primitive-event analysis layer for Waseda chest
+  accelerometer envelope data:
+  - `CODE/ACCELEROMETER/extractEnvelopeEvents.m`
+  - `CODE/ACCELEROMETER/extractEnvelopeEventWaveforms.m`
+  - `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`
+- Current scientific framing:
+  - detect baseline-relative envelope events
+  - exclude obvious compound events using nearby-peak logic
+  - compare amplitudes, widths, and intervals across subject and condition
+  - test whether isolated events share a more stable normalized waveform or
+    normalized time-frequency structure than their raw amplitudes do
+- Important implementation decisions:
+  - event detection is performed on `noiseEstimate.eventSignal`, not on the
+    raw envelope
+  - internal event logic should stay sample-index based; seconds are only
+    for reporting and plotting
+  - isolated-event summaries are a downstream filter, not a change to the
+    detector itself
+  - waveform-shape summaries currently use the baseline-relative event
+    signal because it is easier to compare morphology above baseline than
+    raw envelope level
+- Added a post hoc wavelet-similarity layer:
+  - `CODE/ACCELEROMETER/analyzeEventAlignedWaveletSimilarity.m`
+  - peak-centered fixed windows
+  - per-event median-centering
+  - optional per-event amplitude normalization
+  - optional per-map normalization
+  - event-event similarity by correlation of flattened normalized wavelet
+    maps
+  - random non-event window control from the same files
+- Important correction made after visual inspection:
+  - mean event waveforms were previously using event-specific relative time
+    columns in a way that could produce small backward/zigzag horizontal
+    segments when averaged
+  - fixed by giving aligned snippets one shared sample-based relative vector
+    and plotting all event-aligned means against that single axis
+- Outputs produced for handoff and review:
+  - handoff document for repo/MATLAB context
+  - replication brief for Simo / non-MATLAB reimplementation
+  - tracked figure folder with the most relevant event and wavelet summary
+    figures
+- Reflection:
+  - the event question is still detector-limited, but the current pipeline
+    is now explicit enough that another agent can reimplement it
+  - the most important conceptual distinction to preserve is between
+    subject/context effects on amplitude or rate and possible cross-context
+    stability of normalized event morphology
+
 ## 2026-05-06 12:32:49 JST
 
 - Read the current IMU preprocessing pipeline carefully:

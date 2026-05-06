@@ -251,12 +251,8 @@ end
 
 meanWaveform = mean(selectedWaveformMatrix, 2, 'omitnan');
 
-if ~isempty(waveforms.relativeTimeMatrixSec)
-    if isempty(selectedWaveformMatrix)
-        relativeTimeSec = mean(waveforms.relativeTimeMatrixSec, 2, 'omitnan');
-    else
-        relativeTimeSec = mean(waveforms.relativeTimeMatrixSec(:, waveformColumnIndex), 2, 'omitnan');
-    end
+if isfield(waveforms, 'relativeTimeSec') && ~isempty(waveforms.relativeTimeSec)
+    relativeTimeSec = waveforms.relativeTimeSec;
 else
     relativeTimeSec = ((1:size(waveformMatrix, 1)) - 1).';
 end

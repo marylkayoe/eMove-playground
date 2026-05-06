@@ -34,6 +34,7 @@ function eventWaveforms = extractEnvelopeEventWaveforms(signal, peakLocations, v
 %     a bounded lookahead window.
 %   - Output waveforms are aligned by peak, not by event start.
 %   - Output waveforms are padded with NaN to the longest pre/post-peak span.
+%   - All aligned waveforms share one sample-based relative time vector.
 %
 % Output
 %   eventWaveforms.waveformCube
@@ -45,6 +46,8 @@ function eventWaveforms = extractEnvelopeEventWaveforms(signal, peakLocations, v
 %       nAlignedSamples x nEvents x 1 array of time relative to the peak if
 %       TimeSec is supplied, otherwise [].
 %   eventWaveforms.peakLocations
+%   eventWaveforms.relativeSampleIndex
+%   eventWaveforms.relativeTimeSec
 %   eventWaveforms.eventTable
 %       Table with event boundaries, lengths, peak timing, and half-height
 %       width measurements.
@@ -190,6 +193,13 @@ maxSamplesBeforePeak = max(samplesBeforePeak);
 maxSamplesAfterPeak = max(samplesAfterPeak);
 nAlignedSamples = maxSamplesBeforePeak + maxSamplesAfterPeak + 1;
 alignedPeakRow = maxSamplesBeforePeak + 1;
+relativeSampleIndex = (-maxSamplesBeforePeak:maxSamplesAfterPeak).';
+relativeTimeSec = relativeSampleIndex ./ samplingFrequency;
+
+if any(diff(relativeTimeSec) <= 0)
+    error('extractEnvelopeEventWaveforms:NonMonotonicRelativeTime', ...
+        'relativeTimeSec must be strictly increasing.');
+end
 
 %% Pack NaN-padded waveforms
 
@@ -197,10 +207,8 @@ waveformCube = NaN(nAlignedSamples, nEvents, 1);
 
 if isempty(timeSec)
     timeCubeSec = [];
-    relativeTimeCubeSec = [];
 else
     timeCubeSec = NaN(nAlignedSamples, nEvents, 1);
-    relativeTimeCubeSec = NaN(nAlignedSamples, nEvents, 1);
 end
 
 for eventIndex = 1:nEvents
@@ -217,7 +225,6 @@ for eventIndex = 1:nEvents
     if ~isempty(timeSec)
         currentTimesSec = timeSec(currentIndices);
         timeCubeSec(currentRows, eventIndex, 1) = currentTimesSec;
-        relativeTimeCubeSec(currentRows, eventIndex, 1) = currentTimesSec - timeSec(peakIndex);
     end
 end
 
@@ -232,12 +239,10 @@ if ~isempty(timeCubeSec)
 else
     eventWaveforms.timeMatrixSec = [];
 end
-eventWaveforms.relativeTimeCubeSec = relativeTimeCubeSec;
-if ~isempty(relativeTimeCubeSec)
-    eventWaveforms.relativeTimeMatrixSec = relativeTimeCubeSec(:, :, 1);
-else
-    eventWaveforms.relativeTimeMatrixSec = [];
-end
+eventWaveforms.relativeSampleIndex = relativeSampleIndex;
+eventWaveforms.relativeTimeSec = relativeTimeSec;
+eventWaveforms.relativeTimeCubeSec = [];
+eventWaveforms.relativeTimeMatrixSec = repmat(relativeTimeSec, 1, nEvents);
 eventWaveforms.peakLocations = peakLocations;
 eventWaveforms.alignedPeakRow = alignedPeakRow;
 eventWaveforms.alignedStartRow = [];
@@ -247,7 +252,7 @@ eventWaveforms.figureHandle = [];
 
 if makeFigure
     eventWaveforms.figureHandle = localPlotWaveforms(eventWaveforms.waveformMatrix, ...
-        eventWaveforms.relativeTimeMatrixSec, alignedPeakRow, figureTitle);
+        eventWaveforms.relativeTimeSec, alignedPeakRow, figureTitle);
 end
 
 end
@@ -333,6 +338,8 @@ eventWaveforms.waveformCube = NaN(0, 0, 1);
 eventWaveforms.waveformMatrix = NaN(0, 0);
 eventWaveforms.timeCubeSec = [];
 eventWaveforms.timeMatrixSec = [];
+eventWaveforms.relativeSampleIndex = [];
+eventWaveforms.relativeTimeSec = [];
 eventWaveforms.relativeTimeCubeSec = [];
 eventWaveforms.relativeTimeMatrixSec = [];
 eventWaveforms.peakLocations = [];
@@ -367,11 +374,11 @@ for eventIndex = 1:size(waveformMatrix, 2)
 end
 end
 
-function figureHandle = localPlotWaveforms(waveformMatrix, relativeTimeMatrixSec, alignedPeakRow, figureTitle)
+function figureHandle = localPlotWaveforms(waveformMatrix, relativeTimeSec, alignedPeakRow, figureTitle)
 meanWaveform = mean(waveformMatrix, 2, 'omitnan');
 
-if ~isempty(relativeTimeMatrixSec)
-    xValues = mean(relativeTimeMatrixSec, 2, 'omitnan');
+if ~isempty(relativeTimeSec)
+    xValues = relativeTimeSec;
 else
     xValues = ((1:size(waveformMatrix, 1)) - alignedPeakRow).';
 end

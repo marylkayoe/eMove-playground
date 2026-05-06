@@ -46,6 +46,10 @@ Current tracked entry points:
   - `CODE/ACCELEROMETER/importWasedaAccelerometerCsv.m`
   - `CODE/ACCELEROMETER/parseAccMetadata.m`
   - `CODE/ACCELEROMETER/convertWasedaAccelerometerDatasetToMat.m`
+- condition-normalized CSV export helper:
+  - `CODE/ACCELEROMETER/createNormalizedWasedaAccelerometerCsvCopies.m`
+- chest magnitude export helper:
+  - `CODE/ACCELEROMETER/createWasedaChestMagnitudeEnvelopeFiles.m`
 - envelope preprocessing helper:
   - `CODE/ANALYSIS/preprocessWasedaDynamicEnvelope.m`
 - quiet-dynamics probe:
@@ -64,10 +68,23 @@ Current tracked entry points:
 Current output policy:
 - generated Waseda outputs should go to `scratch/waseda_acc_matlab/...`
 - do not commit probe CSVs or rendered figures unless explicitly promoted
-- raw WTAcc CSV-to-MAT conversion writes outside the repo under:
+- derived Waseda data layers write outside the repo under:
+  - `/Users/yoe/Documents/DATA/Waseda-ACC/NORMALIZED-CSV/`
   - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/`
-  - optional flat concatenated export:
-    `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED/`
+  - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED/`
+  - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES/`
+
+Current derived-data structure:
+- `NORMALIZED-CSV` is the condition-specific copy layer for WTAcc CSVs
+  with normalized filenames such as
+  `20260421_sub3_desk_work_stand_acc1_chest_chunk0.csv`
+- `CONCATENATED` now contains condition-level MAT files built from the
+  normalized CSV layer, for example
+  `20260421_sub3_desk_work_stand_acc1_chest.mat`
+- `MAGNITUDES` contains chest-only motion-envelope MAT files created by:
+  - `prepareAccelerometerQuaternionData`
+  - `removeGravityFromPreparedImu`
+  - `computeAccelerometerMotionEnvelope`
 
 Current descriptive status:
 - the most useful current Waseda event object is a compound quiet-state

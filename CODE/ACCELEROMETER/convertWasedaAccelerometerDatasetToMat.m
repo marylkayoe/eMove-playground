@@ -81,7 +81,7 @@ while fileIndex <= numel(csvPaths)
     currentCsvPath = csvPaths{fileIndex};
     [currentFolder, currentStem] = fileparts(currentCsvPath);
 
-    currentChunkToken = regexp(currentStem, '^(.*)_(\d+)$', 'tokens', 'once');
+    currentChunkToken = regexp(currentStem, '^(.*?)(?:_chunk|_)(\d+)$', 'tokens', 'once');
     if isempty(currentChunkToken)
         currentRecordingStem = string(currentStem);
         currentChunkNumber = NaN;
@@ -102,7 +102,7 @@ while fileIndex <= numel(csvPaths)
             nextCsvPath = csvPaths{nextFileIndex};
             [nextFolder, nextStem] = fileparts(nextCsvPath);
 
-            nextChunkToken = regexp(nextStem, '^(.*)_(\d+)$', 'tokens', 'once');
+            nextChunkToken = regexp(nextStem, '^(.*?)(?:_chunk|_)(\d+)$', 'tokens', 'once');
             if isempty(nextChunkToken)
                 nextRecordingStem = string(nextStem);
                 nextChunkNumber = NaN;

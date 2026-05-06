@@ -1,5 +1,72 @@
 # Signal Analysis Agent Journal
 
+## 2026-05-06 10:15:12 JST
+
+- Revised the WTAcc import and conversion code so the MATLAB files now keep
+  quaternion data as well as acceleration data.
+- Current structure change:
+  - `accData.acc` remains `nSamples x 3`
+  - `accData.quat` is now `nSamples x 4`
+- Concatenation rule stayed simple:
+  - append `quat` row-wise in the same order as `acc`
+- Reflection:
+  - this was a good case for a small structural extension rather than a new
+    importer design
+  - the existing `accData` structure was already the right place to keep
+    another sensor-derived matrix
+
+## 2026-05-06 10:01:13 JST
+
+- Added a minimal GUI browser for accelerometer MAT files:
+  - `CODE/ACCELEROMETER/browseAccelerometerMat.m`
+- Current browsing scope:
+  - open one MAT file
+  - display X, Y, Z traces
+  - switch between raw and mean-centered views
+- Reflection:
+  - the browsing function should stay at the level of one figure with a few
+    controls, not drift into app architecture
+  - mean-centering is only a display option here, not a hidden preprocessing
+    change to the data on disk
+
+## 2026-05-06 09:48:27 JST
+
+- Checked the WTAcc CSV header on a real file.
+- The raw files contain more than accelerometer data. Present columns
+  include:
+  - gyroscope
+  - shift
+  - speed
+  - angle
+  - magnetic field
+  - temperature
+  - quaternions
+  - raw power and battery percent
+- Current scope decision:
+  - stay with accelerometer data only for now
+- Added a very simple mean-centering function:
+  - `CODE/ACCELEROMETER/centerAccByMean.m`
+- Reflection:
+  - the first implementation was mislabeled as gravity removal
+  - subtracting the column mean is centering, not true gravity removal
+  - the function and comments should say exactly what the math does
+
+## 2026-05-06 09:39:15 JST
+
+- Added a first display function for one accelerometer trial:
+  - `CODE/ACCELEROMETER/displaySingleTrialAccelerometer.m`
+- Kept the first version intentionally small:
+  - one input structure: `accData`
+  - one panel
+  - three traces: X, Y, Z
+  - one metadata block above the panel
+  - rely on MATLAB's native zoom and pan instead of building extra controls
+- Reflection:
+  - for a first display function, "interactive" should mean using MATLAB's
+    existing figure interaction, not building a custom viewer
+  - the main task is just to make one recording easy to inspect quickly
+  - underscores in filenames should be shown with `Interpreter = none`
+
 ## 2026-05-06 09:24:45 JST
 
 - Simplified the converter's return bookkeeping by removing `summaryRows`

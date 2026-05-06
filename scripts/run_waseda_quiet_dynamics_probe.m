@@ -24,11 +24,11 @@ for iRec = 1:numel(recordings)
     for iSensor = 1:numel(sensors)
         sensorKey = sensors{iSensor};
         series = discoverWasedaAccSeries(opts.rawRoot, recording, sensorKey);
+        [series, highPassInfo] = filterWasedaAccHighPass(series, opts.rawHighPassCutoffHz, opts.rawHighPassOrder);
         env = computeWasedaDynamicMagnitude(series, opts.envWindowSec);
         envSmooth = localRollingMeanCentered(env, localSamplesForSeconds(series.sample_rate_hz, opts.smoothSec));
         [envSmooth, ~, ~] = preprocessWasedaDynamicEnvelope(series.times_sec, envSmooth, ...
             'artifactThreshold', opts.artifactEnvThreshold);
-        envRate = localAbsDerivative(series.times_sec, envSmooth);
 
         for iWin = 1:numel(recording.windows)
             window = recording.windows(iWin);
@@ -38,7 +38,17 @@ for iRec = 1:numel(recordings)
                 continue;
             end
             windowEnv = envSmooth(idxs);
-            windowRate = envRate(idxs);
+            oscInfo = localEmptyOscillationInfo(opts.oscillationHarmonicCount);
+            if ~strcmp(opts.oscillationRemovalMode, 'none')
+                [windowEnv, oscInfo] = removeWasedaEnvelopeOscillation(series.times_sec(idxs), windowEnv, ...
+                    'searchBandHz', opts.oscillationSearchBandHz, ...
+                    'harmonicCount', opts.oscillationHarmonicCount, ...
+                    'minPeakRelPower', opts.oscillationMinPeakRelPower);
+            end
+            envDetection = envSmooth;
+            envDetection(idxs) = windowEnv;
+            envRate = localAbsDerivative(series.times_sec, envDetection);
+            windowRate = localAbsDerivative(series.times_sec(idxs), windowEnv);
             artifactMask = windowEnv >= opts.artifactEnvThreshold;
             stableMask = localStableReferenceMask(windowEnv, artifactMask, opts);
             stableEnv = windowEnv(stableMask);
@@ -56,13 +66,13 @@ for iRec = 1:numel(recordings)
                 stableBand = max(1e-9, iqr(stableEnv));
             end
             burstThreshold = envCenter + stableBand;
-            bursts = localDetectStableBandDepartures(series, envSmooth, envRate, idxs, envCenter, stableBand, artifactMask, opts);
-            currentEpochRows = localBuildEpochRows(series, window, startSec, endSec, envSmooth, envRate, ...
+            bursts = localDetectStableBandDepartures(series, envDetection, envRate, idxs, envCenter, stableBand, artifactMask, opts);
+            currentEpochRows = localBuildEpochRows(series, window, startSec, endSec, envDetection, envRate, ...
                 envCenter, stableBand, bursts, opts);
             epochRows = localAppendStructRows(epochRows, currentEpochRows);
             windowRows = localAppendStructRows(windowRows, ...
                 localWindowSummaryRow(series, window, startSec, endSec, windowEnv, windowRate, ...
-                envCenter, envMad, stableBand, burstThreshold, bursts, currentEpochRows));
+                envCenter, envMad, stableBand, burstThreshold, bursts, currentEpochRows, oscInfo, highPassInfo));
             currentBurstRows = localBuildBurstRows(series, window, bursts);
             burstRows = localAppendStructRows(burstRows, currentBurstRows);
         end
@@ -109,6 +119,12 @@ p.addParameter('artifactEnvThreshold', 0.50, @isscalar);
 p.addParameter('stableReferenceQuantile', 0.80, @isscalar);
 p.addParameter('stableUpperQuantile', 0.95, @isscalar);
 p.addParameter('supportBandFraction', 0.00, @isscalar);
+p.addParameter('rawHighPassCutoffHz', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x) && x >= 0));
+p.addParameter('rawHighPassOrder', 2, @isscalar);
+p.addParameter('oscillationRemovalMode', 'harmonic_fit', @(x) any(strcmp(x, {'none', 'harmonic_fit'})));
+p.addParameter('oscillationSearchBandHz', [0.10 0.80]);
+p.addParameter('oscillationHarmonicCount', 3, @isscalar);
+p.addParameter('oscillationMinPeakRelPower', 3.0, @isscalar);
 p.parse(varargin{:});
 opts = p.Results;
 opts.manifestPath = char(opts.manifestPath);
@@ -422,7 +438,7 @@ while cursor < endSec
 end
 end
 
-function row = localWindowSummaryRow(series, window, startSec, endSec, envValues, rateValues, envCenter, envMad, stableBand, burstThreshold, bursts, epochRows)
+function row = localWindowSummaryRow(series, window, startSec, endSec, envValues, rateValues, envCenter, envMad, stableBand, burstThreshold, bursts, epochRows, oscInfo, highPassInfo)
 durationMin = max(1e-9, (endSec - startSec) / 60);
 strictBursts = bursts(arrayfun(@(b) b.env_delta >= stableBand, bursts));
 strongBursts = bursts(arrayfun(@(b) b.env_delta >= 2 * stableBand, bursts));
@@ -450,6 +466,13 @@ row.env_p95 = localFmt(localQuantileOrNaN(envValues, 0.95));
 row.rate_p95 = localFmt(localQuantileOrNaN(rateValues, 0.95));
 row.rate_p99 = localFmt(localQuantileOrNaN(rateValues, 0.99));
 row.burst_threshold = localFmt(burstThreshold);
+row.oscillation_removed = string(oscInfo.applied);
+row.oscillation_freq_hz = localFmt(oscInfo.dominant_freq_hz);
+row.oscillation_peak_rel_power = localFmt(oscInfo.peak_rel_power);
+row.oscillation_harmonic_count = string(oscInfo.harmonic_count);
+row.raw_highpass_applied = string(highPassInfo.applied);
+row.raw_highpass_cutoff_hz = localFmt(highPassInfo.cutoff_hz);
+row.raw_highpass_order = string(highPassInfo.order);
 row.candidate_burst_count = string(numel(bursts));
 row.candidate_burst_rate_per_min = localFmt(numel(bursts) / durationMin);
 row.strict_burst_count = string(numel(strictBursts));
@@ -482,6 +505,11 @@ else
     row.first_to_last_strict_burst_rate_delta = localFmt(0);
 end
 row.claim_status = "exploratory_candidate_only";
+end
+
+function info = localEmptyOscillationInfo(harmonicCount)
+info = struct('applied', false, 'dominant_freq_hz', NaN, ...
+    'peak_rel_power', NaN, 'harmonic_count', harmonicCount);
 end
 
 function rows = localBuildBurstRows(series, window, bursts)
@@ -549,6 +577,9 @@ payload.probe_version = 'waseda_quiet_dynamics_v1';
 payload.raw_root = opts.rawRoot;
 payload.output_root = opts.outputRoot;
 payload.config = rmfield(opts, {'manifestPath', 'rawRoot', 'outputRoot'});
+if isfield(payload.config, 'rawHighPassCutoffHz') && ~isempty(payload.config.rawHighPassCutoffHz)
+    payload.config.rawHighPassCutoffHz = payload.config.rawHighPassCutoffHz;
+end
 payload.row_counts = struct('quiet_window_summary', nWindow, 'quiet_epoch_summary', nEpoch, 'quiet_burst_events', nBurst);
 payload.claim_status = 'exploratory candidate-finding only; no Waseda claim upgrade';
 payload.terminology_guardrail = 'Waseda recordings are treated as broadly low-animation; this probes within-quiet drift and perturbation candidates.';

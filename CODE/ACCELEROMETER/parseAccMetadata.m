@@ -1,4 +1,4 @@
-function meta = parseAccMetadata(csvPath, acc, timeSec, headerNames, timeText, deviceName, chipTimeText)
+function meta = parseAccMetadata(csvPath, acc, quat, timeSec, headerNames, timeText, deviceName, chipTimeText)
 %PARSEACCMETADATA Build metadata for one imported Waseda accelerometer CSV.
 %
 % Purpose
@@ -8,6 +8,7 @@ function meta = parseAccMetadata(csvPath, acc, timeSec, headerNames, timeText, d
 % Inputs
 %   csvPath        - Source CSV path.
 %   acc            - nSamples x 3 acceleration matrix [X Y Z] in g.
+%   quat           - nSamples x 4 quaternion matrix [q0 q1 q2 q3].
 %   timeSec        - nSamples x 1 time vector in seconds, relative to the
 %                    first sample in the file.
 %   headerNames    - 1 x nColumns string array of original CSV header names.
@@ -39,6 +40,9 @@ meta.accelerationColumns = ["Acceleration X(g)", "Acceleration Y(g)", "Accelerat
 meta.accelerationUnits = "g";
 meta.accelerationMatrixShape = sprintf('%d x %d', size(acc, 1), size(acc, 2));
 meta.axisOrder = ["X", "Y", "Z"];
+meta.quaternionColumns = ["Quaternions 0()", "Quaternions 1()", "Quaternions 2()", "Quaternions 3()"];
+meta.quaternionMatrixShape = sprintf('%d x %d', size(quat, 1), size(quat, 2));
+meta.quaternionOrder = ["q0", "q1", "q2", "q3"];
 meta.timeUnits = "seconds";
 meta.timeReference = "relative to first sample in file";
 meta.timeColumn = "Time";

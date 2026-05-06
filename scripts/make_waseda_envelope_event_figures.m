@@ -9,6 +9,7 @@ if ~isfolder(opts.outputRoot)
     mkdir(opts.outputRoot);
 end
 
+runManifest = localLoadRunManifest(opts.quietRoot);
 windowTbl = readtable(fullfile(opts.quietRoot, 'quiet_window_summary.csv'), 'VariableNamingRule', 'preserve');
 burstTbl = readtable(fullfile(opts.quietRoot, 'quiet_burst_events.csv'), 'VariableNamingRule', 'preserve');
 
@@ -36,9 +37,9 @@ for iRec = 1:numel(recordings)
     end
 end
 
-localMakeConditionFigure('desk_work_stand', 'desk', windowTbl, burstTbl, seriesMap, windowMap, opts);
-localMakeConditionFigure('watching_videos_stand', 'video', windowTbl, burstTbl, seriesMap, windowMap, opts);
-localMakeConditionFigure('', 'all_conditions', windowTbl, burstTbl, seriesMap, windowMap, opts);
+localMakeConditionFigure('desk_work_stand', 'desk', windowTbl, burstTbl, seriesMap, windowMap, opts, runManifest);
+localMakeConditionFigure('watching_videos_stand', 'video', windowTbl, burstTbl, seriesMap, windowMap, opts, runManifest);
+localMakeConditionFigure('', 'all_conditions', windowTbl, burstTbl, seriesMap, windowMap, opts, runManifest);
 
 fprintf('Wrote Waseda envelope/event figures to %s\n', opts.outputRoot);
 end
@@ -58,7 +59,10 @@ p.parse(varargin{:});
 opts = p.Results;
 end
 
-function localMakeConditionFigure(conditionName, fileStem, windowTbl, burstTbl, seriesMap, windowMap, opts)
+function localMakeConditionFigure(conditionName, fileStem, windowTbl, burstTbl, seriesMap, windowMap, opts, runManifest)
+if nargin < 8 || isempty(runManifest)
+    runManifest = struct();
+end
 subjectOrder = {'sub1', 'sub2', 'sub3', 'sub4'};
 windowRows = localSelectWindowRows(windowTbl, conditionName, subjectOrder, opts.sensorKey);
 if isempty(windowRows)
@@ -68,12 +72,13 @@ end
 figureHandle = figure('Color', 'w', 'Position', [80 80 1700 1100]);
 axisCount = numel(windowRows);
 t = tiledlayout(axisCount, 1, 'TileSpacing', 'compact', 'Padding', 'compact');
+highPassText = localHighPassSubtitle(runManifest);
 if isempty(conditionName)
     titleText = 'Waseda chest ACC dynamic envelopes and identified events';
-    subtitleText = 'All work and video windows. Red circles = all candidate events. Dark markers = strict events (env delta >= stable band).';
+    subtitleText = sprintf('All work and video windows. %s Red circles = all candidate events. Dark markers = strict events (env delta >= stable band).', highPassText);
 else
     titleText = sprintf('Waseda chest ACC dynamic envelopes and identified events: %s', strrep(strrep(conditionName, '_stand', ''), '_', ' '));
-    subtitleText = 'Red circles = all candidate events. Dark markers = strict events (env delta >= stable band).';
+    subtitleText = sprintf('%s Red circles = all candidate events. Dark markers = strict events (env delta >= stable band).', highPassText);
 end
 title(t, titleText, 'FontSize', 20, 'FontWeight', 'bold');
 subtitle(t, subtitleText, 'FontSize', 12);
@@ -140,6 +145,34 @@ xlabel(t, 'minutes from condition start');
 savefig(figureHandle, fullfile(opts.outputRoot, sprintf('waseda_envelopes_events_%s.fig', fileStem)));
 exportgraphics(figureHandle, fullfile(opts.outputRoot, sprintf('waseda_envelopes_events_%s.png', fileStem)), 'Resolution', 180);
 close(figureHandle);
+end
+
+function subtitleText = localHighPassSubtitle(runManifest)
+subtitleText = '';
+if isempty(runManifest) || ~isfield(runManifest, 'config') || ~isfield(runManifest.config, 'rawHighPassCutoffHz')
+    return;
+end
+cutoffHz = runManifest.config.rawHighPassCutoffHz;
+if isempty(cutoffHz) || (isnumeric(cutoffHz) && cutoffHz <= 0)
+    return;
+end
+subtitleText = sprintf('Raw ACC high-pass %.1f Hz before envelope construction.', cutoffHz);
+end
+
+function runManifest = localLoadRunManifest(quietRoot)
+runManifest = struct();
+manifestPath = fullfile(quietRoot, 'run_manifest.json');
+if ~isfile(manifestPath)
+    return;
+end
+fid = fopen(manifestPath, 'r');
+cleanup = onCleanup(@() fclose(fid));
+rawText = fread(fid, '*char')';
+try
+    runManifest = jsondecode(rawText);
+catch
+    runManifest = struct();
+end
 end
 
 function rows = localSelectWindowRows(windowTbl, conditionName, subjectOrder, sensorKey)

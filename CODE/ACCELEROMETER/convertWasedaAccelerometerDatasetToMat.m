@@ -145,12 +145,14 @@ while fileIndex <= numel(csvPaths)
             currentChunkData = importWasedaAccelerometerCsv(sourceCsvPaths(sourceIndex));
             currentChunkTimeSec = accData.timeSec(end) + sampleStepSec + currentChunkData.timeSec;
             accData.acc = [accData.acc; currentChunkData.acc]; %#ok<AGROW>
+            accData.quat = [accData.quat; currentChunkData.quat]; %#ok<AGROW>
             accData.timeSec = [accData.timeSec; currentChunkTimeSec]; %#ok<AGROW>
             lastChunkData = currentChunkData;
         end
 
         accData.meta.nSamples = size(accData.acc, 1);
         accData.meta.accelerationMatrixShape = sprintf('%d x %d', size(accData.acc, 1), size(accData.acc, 2));
+        accData.meta.quaternionMatrixShape = sprintf('%d x %d', size(accData.quat, 1), size(accData.quat, 2));
         accData.meta.sampleRateHz = firstChunkData.meta.sampleRateHz;
         accData.meta.sourceCsvPath = "";
         accData.meta.sourceCsvPaths = sourceCsvPaths;
@@ -217,6 +219,7 @@ fprintf(fid, '- Conversion function: `convertWasedaAccelerometerDatasetToMat`\n'
 fprintf(fid, '- Single-file importer used for each CSV: `importWasedaAccelerometerCsv`\n');
 fprintf(fid, '- Output structure saved in each MAT file: `accData`\n');
 fprintf(fid, '- `accData.acc` is an `nSamples x 3` matrix with acceleration columns `[X Y Z]`\n');
+fprintf(fid, '- `accData.quat` is an `nSamples x 4` matrix with quaternion columns `[q0 q1 q2 q3]`\n');
 fprintf(fid, '- `accData.timeSec` is time in seconds relative to the first sample in the output file\n');
 fprintf(fid, '- `accData.meta` stores source paths, sample-rate estimates, units, column names, and basic timing metadata\n\n');
 

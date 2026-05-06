@@ -73,6 +73,10 @@ Current output policy:
   - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/`
   - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED/`
   - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES/`
+- portable synced copy of the current `MAGNITUDES` folder:
+  - `/Users/yoe/Library/CloudStorage/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES/`
+  - if I am invoked on another computer, check this Dropbox location first
+    before rebuilding the chest motion-envelope MAT files
 
 Current derived-data structure:
 - `NORMALIZED-CSV` is the condition-specific copy layer for WTAcc CSVs

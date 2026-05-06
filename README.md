@@ -42,6 +42,10 @@ Current scope:
 Current tracked entry points:
 - repo-local manifest:
   - `resources/waseda_acc/dataset_manifest.json`
+- CSV import and conversion helpers:
+  - `CODE/ACCELEROMETER/importWasedaAccelerometerCsv.m`
+  - `CODE/ACCELEROMETER/parseAccMetadata.m`
+  - `CODE/ACCELEROMETER/convertWasedaAccelerometerDatasetToMat.m`
 - envelope preprocessing helper:
   - `CODE/ANALYSIS/preprocessWasedaDynamicEnvelope.m`
 - quiet-dynamics probe:
@@ -60,6 +64,10 @@ Current tracked entry points:
 Current output policy:
 - generated Waseda outputs should go to `scratch/waseda_acc_matlab/...`
 - do not commit probe CSVs or rendered figures unless explicitly promoted
+- raw WTAcc CSV-to-MAT conversion writes outside the repo under:
+  - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/`
+  - optional flat concatenated export:
+    `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED/`
 
 Current descriptive status:
 - the most useful current Waseda event object is a compound quiet-state

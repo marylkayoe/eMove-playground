@@ -45,6 +45,13 @@ This document maps the current MATLAB codebase so new contributors can quickly f
     - `getMotionMetricsForMarkers.m`
     - `getMotionMetricsFromTrajectory.m`
 
+- `CODE/ACCELEROMETER/`
+  - Waseda accelerometer CSV import and MAT conversion helpers.
+  - Main files:
+    - `importWasedaAccelerometerCsv.m`
+    - `parseAccMetadata.m`
+    - `convertWasedaAccelerometerDatasetToMat.m`
+
 - `CODE/PLOTTING/`
   - Static plotting utilities and poster figures.
   - Includes self-report body-map visualization:
@@ -127,6 +134,10 @@ Current expected fields:
   - `CODE/HELPERS/loadShimmerEDACSV.m`
   - `CODE/HELPERS/loadMovesenseECGCSV.m`
   - `CODE/HELPERS/loadModalitySignalsFromInventory.m`
+- Waseda accelerometer CSV import and conversion:
+  - `CODE/ACCELEROMETER/importWasedaAccelerometerCsv.m`
+  - `CODE/ACCELEROMETER/parseAccMetadata.m`
+  - `CODE/ACCELEROMETER/convertWasedaAccelerometerDatasetToMat.m`
 - Template generation for testing:
   - `CODE/HELPERS/createStimEncodingTemplateFromManifest.m`
   - `CODE/HELPERS/createBodypartGroupingTemplateFromTrialData.m`

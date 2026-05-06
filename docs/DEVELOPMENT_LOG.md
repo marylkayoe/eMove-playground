@@ -2,6 +2,34 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-05-06
+
+### Waseda Accelerometer CSV Import And MAT Conversion Added
+
+- Added a dedicated accelerometer helper folder:
+  - [importWasedaAccelerometerCsv.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/importWasedaAccelerometerCsv.m)
+  - [parseAccMetadata.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/parseAccMetadata.m)
+  - [convertWasedaAccelerometerDatasetToMat.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/convertWasedaAccelerometerDatasetToMat.m)
+- Current import policy:
+  - one raw WTAcc CSV is imported by `importWasedaAccelerometerCsv`
+  - the importer returns `accData` and does not save files as a side effect
+- Current conversion policy:
+  - `convertWasedaAccelerometerDatasetToMat` can either keep one CSV per MAT
+    or concatenate chunked WTAcc files from the same recording when
+    `concatenateChunks = true`
+  - outputs are written outside the repo under:
+    - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/`
+    - `/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED/`
+- Current provider-side caveat:
+  - flat output naming can collide when different recordings share the same
+    sensor stem
+  - the current converter preserves flat output by adding source-folder
+    context only when a collision would otherwise occur
+- Validation summary on the current Waseda dataset:
+  - non-concatenated conversion writes `30` MAT files
+  - concatenated conversion writes `10` MAT files
+  - current sample-rate estimate remains `31.25 Hz` on representative files
+
 ## 2026-05-03
 
 ### Frequency-Space Follow-Up Triggered By Envelope Oscillation

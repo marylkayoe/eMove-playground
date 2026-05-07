@@ -1,5 +1,45 @@
 # Signal Analysis Agent Journal
 
+## 2026-05-08 00:15:00 JST
+
+- User raised an important scientific concern before moving the thread to a
+  computer with raw data:
+  - the currently detected envelope events are remarkably consistent across
+    subjects and contexts
+  - this may be biologically meaningful, but it is also suspicious because a
+    strict detector and envelope pipeline can impose a preferred shape
+- Working caution:
+  - the next analysis should demonstrate that detected events correspond to
+    real movement signatures, not merely intrinsic accelerometer/envelope
+    processing features
+- Proposed validation controls for the raw-data machine:
+  - event-triggered averages of raw accelerometer `x/y/z`, raw magnitude,
+    gravity-corrected `x/y/z`, gravity-corrected magnitude, envelope, and
+    baseline-relative `eventSignal`
+  - matched random-window controls from the same files, matched for local
+    baseline/variance where possible
+  - surrogate-signal controls such as phase-randomized envelopes, shuffled
+    residual chunks, spectrum-matched noise, and filtered noise passed through
+    the same event workflow
+  - multi-axis physical-consistency checks to verify that scalar envelope
+    events have plausible axis-level acceleration structure
+  - parameter robustness checks across threshold, valley rule, baseline/noise
+    windows, and minimum peak distance
+  - timing checks for lock-in to sampling, filtering, RMS-window, or carrier
+    artifacts
+  - external validation against video/task logs/other sensors if available
+- Preferred first raw-data test:
+  - keep the existing event times from the current detector
+  - extract raw and gravity-corrected axis snippets around those times
+  - compare event-triggered raw-axis structure against matched random windows
+  - run the same detector on surrogate signals to see whether similar
+    "primitive" event shapes appear without real movement
+- Interpretation rule for the next agent:
+  - strong morphology consistency alone is not enough
+  - the event class becomes more credible only if it has independent
+    raw-signal or external movement evidence and exceeds matched/surrogate
+    controls
+
 ## 2026-05-08 00:00:00 JST
 
 - Paused the Waseda primitive-event boundary exploration and updated the

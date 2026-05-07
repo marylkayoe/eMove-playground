@@ -2,6 +2,31 @@
 
 This document tracks project state, implementation decisions, and validation runs.
 
+## 2026-05-08
+
+### Waseda Primitive Event Boundary Exploration Paused
+
+- Documented the current derivative/notch boundary exploration:
+  - [DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md)
+- Current status:
+  - the main detector and main event extractor remain unchanged
+  - the derivative/notch layer reuses existing isolated peaks
+  - the derivative boundaries move inward toward visually apparent waveform
+    notches
+  - peak-aligned and derivative-start-aligned means still show shoulder or
+    plateau structure
+- Current interpretation:
+  - notch landmarks are a useful diagnostic boundary hypothesis
+  - they are not yet a validated replacement for the minimum-within-window
+    boundary rule
+  - nearby subthreshold event-like bumps are probably contaminating some
+    events that pass the current isolated-event filter
+- Recommended next step:
+  - add an event-level contamination score before changing the detector
+  - candidate score inputs include secondary local maxima, valley depth,
+    outside-core signal area, and derivative landmarks outside the candidate
+    core
+
 ## 2026-05-06
 
 ### Waseda Accelerometer CSV Import And MAT Conversion Added

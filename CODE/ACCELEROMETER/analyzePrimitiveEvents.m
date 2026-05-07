@@ -235,9 +235,15 @@ end
 
 function waveformRow = localBuildMeanWaveformRow(fileName, fileInfo, waveforms, filteredEventTable)
 waveformMatrix = waveforms.waveformMatrix;
+if isfield(waveforms, 'relativeSampleIndex') && ~isempty(waveforms.relativeSampleIndex)
+    relativeSampleIndex = waveforms.relativeSampleIndex;
+else
+    relativeSampleIndex = ((1:size(waveformMatrix, 1)) - waveforms.alignedPeakRow).';
+end
 
 if isempty(filteredEventTable)
     selectedWaveformMatrix = NaN(size(waveformMatrix, 1), 0);
+    waveformColumnIndex = [];
 else
     selectedIndices = filteredEventTable.peakIndex;
     [isMatched, waveformColumnIndex] = ismember(selectedIndices, waveforms.peakLocations);
@@ -249,7 +255,9 @@ else
     end
 end
 
+selectedWaveformMatrix = localShiftEventColumnsToFirstFiniteZero(selectedWaveformMatrix);
 meanWaveform = mean(selectedWaveformMatrix, 2, 'omitnan');
+semWaveform = localComputeSem(selectedWaveformMatrix);
 
 if isfield(waveforms, 'relativeTimeSec') && ~isempty(waveforms.relativeTimeSec)
     relativeTimeSec = waveforms.relativeTimeSec;
@@ -257,24 +265,16 @@ else
     relativeTimeSec = ((1:size(waveformMatrix, 1)) - 1).';
 end
 
-meanWaveform = meanWaveform - localFirstFiniteValue(meanWaveform);
-
 waveformRow = struct();
 waveformRow.fileName = string(fileName);
 waveformRow.subjectID = string(fileInfo.subjectID);
 waveformRow.condition = string(fileInfo.condition);
+waveformRow.relativeSampleIndex = relativeSampleIndex;
 waveformRow.relativeTimeSec = relativeTimeSec;
+waveformRow.eventWaveformMatrix = selectedWaveformMatrix;
 waveformRow.meanWaveform = meanWaveform;
+waveformRow.semWaveform = semWaveform;
 waveformRow.nEvents = size(selectedWaveformMatrix, 2);
-end
-
-function firstValue = localFirstFiniteValue(values)
-firstIndex = find(isfinite(values), 1, 'first');
-if isempty(firstIndex)
-    firstValue = 0;
-else
-    firstValue = values(firstIndex);
-end
 end
 
 function summaryTable = localBuildFileSummaryTable(perFile, allEventTable)
@@ -395,15 +395,16 @@ function figureHandle = localMakeFileMeanWaveformFigure(meanWaveformRows)
 figureHandle = figure('Color', 'w', 'Position', [100 80 1450 950]);
 t = tiledlayout(4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 title(t, 'Mean event-signal waveforms by file', 'FontSize', 16, 'FontWeight', 'bold');
-subtitle(t, 'Waveforms come from baseline-relative eventSignal and are shifted so the first finite y value is 0.', 'FontSize', 11);
+subtitle(t, 'Waveforms come from baseline-relative eventSignal and are shifted so the first finite y value is 0. Shading is mean +/- SEM.', 'FontSize', 11);
 
 for fileIndex = 1:numel(meanWaveformRows)
     ax = nexttile(t);
-    plot(ax, meanWaveformRows(fileIndex).relativeTimeSec, meanWaveformRows(fileIndex).meanWaveform, ...
-        'k', 'LineWidth', 2.0);
-    xline(ax, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0);
+    localPlotMeanWithSem(ax, meanWaveformRows(fileIndex).relativeTimeSec, ...
+        meanWaveformRows(fileIndex).meanWaveform, meanWaveformRows(fileIndex).semWaveform, ...
+        [0 0 0], sprintf('%s', char(meanWaveformRows(fileIndex).fileName)));
+    xline(ax, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0, 'HandleVisibility', 'off');
     grid(ax, 'on');
-    xlabel(ax, 'time from event start');
+    xlabel(ax, 'time relative to peak (s)');
     ylabel(ax, 'mean event signal');
     title(ax, sprintf('%s | %s | n=%d', ...
         char(meanWaveformRows(fileIndex).subjectID), ...
@@ -417,7 +418,7 @@ function figureHandle = localMakeGroupedMeanWaveformFigure(meanWaveformRows)
 figureHandle = figure('Color', 'w', 'Position', [100 80 1300 900]);
 t = tiledlayout(2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
 title(t, 'Mean event-signal waveforms grouped across subjects and contexts', 'FontSize', 16, 'FontWeight', 'bold');
-subtitle(t, 'Means come from baseline-relative eventSignal. The last panel shows peak-normalized subject means.', 'FontSize', 11);
+subtitle(t, 'Means come from baseline-relative eventSignal. Shading is mean +/- SEM. The last panel shows peak-normalized subject means.', 'FontSize', 11);
 
 conditionOrder = ["desk_work_stand", "watching_videos_stand"];
 subjectOrder = ["sub1", "sub2", "sub3", "sub4"];
@@ -432,7 +433,7 @@ for conditionIndex = 1:numel(conditionOrder)
         strrep(strrep(char(conditionOrder(conditionIndex)), '_stand', ''), '_', ' '));
 end
 grid(ax1, 'on');
-xlabel(ax1, 'time from event start');
+xlabel(ax1, 'time relative to peak (s)');
 ylabel(ax1, 'mean event signal');
 title(ax1, 'Grouped by condition', 'FontWeight', 'normal');
 legend(ax1, 'Location', 'northeast', 'Box', 'off');
@@ -444,7 +445,7 @@ for subjectIndex = 1:numel(subjectOrder)
         subjectColors(subjectIndex, :), char(subjectOrder(subjectIndex)));
 end
 grid(ax2, 'on');
-xlabel(ax2, 'time from event start');
+xlabel(ax2, 'time relative to peak (s)');
 ylabel(ax2, 'mean event signal');
 title(ax2, 'Grouped by subject', 'FontWeight', 'normal');
 legend(ax2, 'Location', 'northeast', 'Box', 'off');
@@ -452,13 +453,14 @@ legend(ax2, 'Location', 'northeast', 'Box', 'off');
 ax3 = nexttile(t, 3);
 hold(ax3, 'on');
 for rowIndex = 1:numel(meanWaveformRows)
-    plot(ax3, meanWaveformRows(rowIndex).relativeTimeSec, meanWaveformRows(rowIndex).meanWaveform, ...
-        'LineWidth', 1.5, 'DisplayName', sprintf('%s %s', ...
+    localPlotMeanWithSem(ax3, meanWaveformRows(rowIndex).relativeTimeSec, ...
+        meanWaveformRows(rowIndex).meanWaveform, meanWaveformRows(rowIndex).semWaveform, ...
+        [0.35 0.35 0.35], sprintf('%s %s', ...
         char(meanWaveformRows(rowIndex).subjectID), ...
         strrep(strrep(char(meanWaveformRows(rowIndex).condition), '_stand', ''), '_', ' ')));
 end
 grid(ax3, 'on');
-xlabel(ax3, 'time from event start');
+xlabel(ax3, 'time relative to peak (s)');
 ylabel(ax3, 'mean event signal');
 title(ax3, 'All 8 file means', 'FontWeight', 'normal');
 
@@ -472,16 +474,17 @@ for subjectIndex = 1:numel(subjectOrder)
     if isempty(selectedRows)
         continue;
     end
-    [commonTimeSec, stackedWaveforms] = localStackWaveformRows(selectedRows);
+    [commonTimeSec, stackedWaveforms] = localStackEventWaveformRows(selectedRows);
+    stackedWaveforms = localNormalizeEventColumnsToPeak(stackedWaveforms);
     subjectMeanWaveform = mean(stackedWaveforms, 2, 'omitnan');
-    normalizedWaveform = localNormalizeMeanWaveformToPeak(subjectMeanWaveform);
-    plot(ax4, commonTimeSec, normalizedWaveform, ...
-        'LineWidth', 2.0, 'Color', subjectColors(subjectIndex, :), ...
-        'DisplayName', char(subjectOrder(subjectIndex)));
+    subjectSemWaveform = localComputeSem(stackedWaveforms);
+    displayName = sprintf('%s (n=%d)', char(subjectOrder(subjectIndex)), size(stackedWaveforms, 2));
+    localPlotMeanWithSem(ax4, commonTimeSec, subjectMeanWaveform, subjectSemWaveform, ...
+        subjectColors(subjectIndex, :), displayName);
 end
-xline(ax4, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0);
+xline(ax4, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0, 'HandleVisibility', 'off');
 grid(ax4, 'on');
-xlabel(ax4, 'time from event start');
+xlabel(ax4, 'time relative to peak (s)');
 ylabel(ax4, 'normalized mean event signal');
 title(ax4, 'Subject means: start = 0, peak = 1', 'FontWeight', 'normal');
 legend(ax4, 'Location', 'eastoutside', 'Box', 'off');
@@ -496,22 +499,133 @@ end
 
 [commonTimeSec, stackedWaveforms] = localStackWaveformRows(selectedRows);
 groupMeanWaveform = mean(stackedWaveforms, 2, 'omitnan');
-plot(ax, commonTimeSec, groupMeanWaveform, 'LineWidth', 2.3, 'Color', plotColor, 'DisplayName', displayName);
-xline(ax, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0);
+groupSemWaveform = localComputeSem(stackedWaveforms);
+displayNameWithN = sprintf('%s (n=%d)', displayName, size(stackedWaveforms, 2));
+localPlotMeanWithSem(ax, commonTimeSec, groupMeanWaveform, groupSemWaveform, plotColor, displayNameWithN);
+xline(ax, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0, 'HandleVisibility', 'off');
 end
 
 function [commonTimeSec, stackedWaveforms] = localStackWaveformRows(meanWaveformRows)
-maxLength = max(arrayfun(@(row) numel(row.meanWaveform), meanWaveformRows));
-stackedWaveforms = NaN(maxLength, numel(meanWaveformRows));
-timeMatrix = NaN(maxLength, numel(meanWaveformRows));
-
-for rowIndex = 1:numel(meanWaveformRows)
-    currentLength = numel(meanWaveformRows(rowIndex).meanWaveform);
-    stackedWaveforms(1:currentLength, rowIndex) = meanWaveformRows(rowIndex).meanWaveform;
-    timeMatrix(1:currentLength, rowIndex) = meanWaveformRows(rowIndex).relativeTimeSec;
+[commonTimeSec, stackedWaveforms] = localStackEventWaveformRows(meanWaveformRows);
 end
 
-commonTimeSec = mean(timeMatrix, 2, 'omitnan');
+function [commonTimeSec, stackedWaveforms] = localStackEventWaveformRows(meanWaveformRows)
+minSampleIndex = min(arrayfun(@(row) min(row.relativeSampleIndex), meanWaveformRows));
+maxSampleIndex = max(arrayfun(@(row) max(row.relativeSampleIndex), meanWaveformRows));
+commonSampleIndex = (minSampleIndex:maxSampleIndex).';
+nEvents = sum(arrayfun(@(row) size(row.eventWaveformMatrix, 2), meanWaveformRows));
+stackedWaveforms = NaN(numel(commonSampleIndex), nEvents);
+
+nextColumn = 1;
+for rowIndex = 1:numel(meanWaveformRows)
+    currentMatrix = meanWaveformRows(rowIndex).eventWaveformMatrix;
+    currentEventCount = size(currentMatrix, 2);
+    if currentEventCount == 0
+        continue;
+    end
+
+    [isMember, targetRows] = ismember(meanWaveformRows(rowIndex).relativeSampleIndex, commonSampleIndex);
+    if ~all(isMember)
+        error('analyzePrimitiveEvents:RelativeSampleMismatch', ...
+            'Could not place event waveforms on the common relative sample axis.');
+    end
+
+    currentColumns = nextColumn:(nextColumn + currentEventCount - 1);
+    stackedWaveforms(targetRows, currentColumns) = currentMatrix;
+    nextColumn = nextColumn + currentEventCount;
+end
+
+stackedWaveforms = stackedWaveforms(:, 1:(nextColumn - 1));
+samplePeriodSec = localEstimateSamplePeriodSec(meanWaveformRows);
+commonTimeSec = commonSampleIndex .* samplePeriodSec;
+if any(diff(commonTimeSec) <= 0)
+    error('analyzePrimitiveEvents:NonMonotonicCommonTime', ...
+        'Common event-aligned time axis must be strictly increasing.');
+end
+end
+
+function shiftedMatrix = localShiftEventColumnsToFirstFiniteZero(waveformMatrix)
+shiftedMatrix = waveformMatrix;
+for eventIndex = 1:size(waveformMatrix, 2)
+    waveform = waveformMatrix(:, eventIndex);
+    firstIndex = find(isfinite(waveform), 1, 'first');
+    if isempty(firstIndex)
+        continue;
+    end
+
+    shiftedMatrix(:, eventIndex) = waveform - waveform(firstIndex);
+end
+end
+
+function semWaveform = localComputeSem(waveformMatrix)
+nFinite = sum(isfinite(waveformMatrix), 2);
+standardDeviation = std(waveformMatrix, 0, 2, 'omitnan');
+semWaveform = standardDeviation ./ sqrt(nFinite);
+semWaveform(nFinite < 2) = NaN;
+end
+
+function localPlotMeanWithSem(ax, xValues, meanWaveform, semWaveform, plotColor, displayName)
+xValues = xValues(:);
+meanWaveform = meanWaveform(:);
+semWaveform = semWaveform(:);
+finiteMask = isfinite(xValues) & isfinite(meanWaveform);
+
+semMask = finiteMask & isfinite(semWaveform);
+if any(semMask)
+    upperBound = meanWaveform + semWaveform;
+    lowerBound = meanWaveform - semWaveform;
+    fill(ax, [xValues(semMask); flipud(xValues(semMask))], ...
+        [upperBound(semMask); flipud(lowerBound(semMask))], ...
+        plotColor, 'FaceAlpha', 0.18, 'EdgeColor', 'none', 'HandleVisibility', 'off');
+end
+
+plot(ax, xValues(finiteMask), meanWaveform(finiteMask), ...
+    'LineWidth', 2.1, 'Color', plotColor, 'DisplayName', displayName);
+end
+
+function normalizedMatrix = localNormalizeEventColumnsToPeak(waveformMatrix)
+normalizedMatrix = waveformMatrix;
+for eventIndex = 1:size(waveformMatrix, 2)
+    waveform = waveformMatrix(:, eventIndex);
+    finiteMask = isfinite(waveform);
+    if ~any(finiteMask)
+        continue;
+    end
+
+    firstIndex = find(finiteMask, 1, 'first');
+    startValue = waveform(firstIndex);
+    peakValue = max(waveform(finiteMask));
+    peakDelta = peakValue - startValue;
+
+    if ~isfinite(peakDelta) || peakDelta <= 0
+        normalizedMatrix(finiteMask, eventIndex) = waveform(finiteMask) - startValue;
+    else
+        normalizedMatrix(finiteMask, eventIndex) = (waveform(finiteMask) - startValue) ./ peakDelta;
+    end
+end
+end
+
+function samplePeriodSec = localEstimateSamplePeriodSec(meanWaveformRows)
+samplePeriods = NaN(numel(meanWaveformRows), 1);
+for rowIndex = 1:numel(meanWaveformRows)
+    relativeSampleIndex = meanWaveformRows(rowIndex).relativeSampleIndex;
+    relativeTimeSec = meanWaveformRows(rowIndex).relativeTimeSec;
+    if numel(relativeSampleIndex) < 2 || numel(relativeTimeSec) < 2
+        continue;
+    end
+
+    sampleStep = diff(relativeSampleIndex);
+    timeStepSec = diff(relativeTimeSec);
+    validMask = isfinite(sampleStep) & sampleStep > 0 & isfinite(timeStepSec) & timeStepSec > 0;
+    if any(validMask)
+        samplePeriods(rowIndex) = median(timeStepSec(validMask) ./ sampleStep(validMask), 'omitnan');
+    end
+end
+
+samplePeriodSec = median(samplePeriods, 'omitnan');
+if ~isfinite(samplePeriodSec) || samplePeriodSec <= 0
+    samplePeriodSec = 1;
+end
 end
 
 function figureHandle = localMakeAmplitudeWidthScatterFigure(eventTable)
@@ -574,23 +688,4 @@ end
 function localSaveFigurePair(figureHandle, outputFolder, fileStem)
 savefig(figureHandle, fullfile(outputFolder, [fileStem '.fig']));
 exportgraphics(figureHandle, fullfile(outputFolder, [fileStem '.png']), 'Resolution', 180);
-end
-
-function normalizedWaveform = localNormalizeMeanWaveformToPeak(meanWaveform)
-normalizedWaveform = meanWaveform;
-finiteMask = isfinite(meanWaveform);
-if ~any(finiteMask)
-    return;
-end
-
-finiteIndices = find(finiteMask);
-startValue = meanWaveform(finiteIndices(1));
-peakValue = max(meanWaveform(finiteMask));
-peakDelta = peakValue - startValue;
-
-if ~isfinite(peakDelta) || peakDelta <= 0
-    normalizedWaveform(finiteMask) = meanWaveform(finiteMask) - startValue;
-else
-    normalizedWaveform(finiteMask) = (meanWaveform(finiteMask) - startValue) ./ peakDelta;
-end
 end

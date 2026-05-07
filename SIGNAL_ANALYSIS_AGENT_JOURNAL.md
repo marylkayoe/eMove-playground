@@ -1,5 +1,96 @@
 # Signal Analysis Agent Journal
 
+## 2026-05-08 00:00:00 JST
+
+- Paused the Waseda primitive-event boundary exploration and updated the
+  relevant handoff documentation.
+- Documentation added or updated:
+  - `docs/DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md`
+  - `docs/PRIMITIVE_EVENT_ANALYSIS_HANDOFF_2026-05-06.md`
+  - `docs/PORTABLE_PRIMITIVE_EVENT_AGENT_BRIEF_2026-05-07.md`
+  - `docs/SIMO_PRIMITIVE_EVENT_REPLICATION_BRIEF_2026-05-06.md`
+  - `docs/DEVELOPMENT_LOG.md`
+  - `scratch/primitive_event_boundary_notches_20260507/NOTES.md`
+- Current technical conclusion:
+  - derivative/notch landmarks are plausible and useful diagnostically
+  - they should not yet replace the main event boundary definition
+  - the remaining waveform shoulders are likely caused at least partly by
+    nearby subthreshold events that are not caught by detected-peak neighbor
+    flags
+- Most important next idea:
+  - keep the detector unchanged initially
+  - add an event-level contamination score based on secondary maxima,
+    valley depth, extra signal outside the event core, and derivative
+    landmarks outside the core
+  - use that score to filter or stratify mean waveform and wavelet summaries
+- No external references were used for the derivative-boundary pass.
+  Reasoning was based on the user's action-potential analogy, standard
+  derivative landmark logic, and visual inspection of the current Waseda
+  event summaries.
+
+## 2026-05-07 15:08:00 JST
+
+- Followed up on the derivative/notch boundary exploration by plotting
+  event means aligned to the derivative-defined start rather than the
+  detected peak.
+- Implementation check:
+  - used the same isolated peaks from `analyzePrimitiveEvents`
+  - did not change event detection
+  - copied each event into a common sample-index matrix before averaging
+  - used rows as relative samples from derivative start and columns as
+    individual events
+  - converted samples to seconds only for plotting
+  - baseline-shifted each snippet so its first finite sample is zero
+- Output:
+  - `scratch/primitive_event_boundary_notches_20260507/outputs/derivative_boundary_start_aligned_waveforms.png`
+- Current interpretation:
+  - aligning to the derivative start makes the rising phase more coherent
+    and removes the pre-start shoulder from the mean
+  - a post-start shoulder or plateau remains, especially in subject-level
+    means, so the derivative start still sometimes precedes smaller
+    shoulder structure rather than the main event rise
+  - next useful test is event-level QC with current, derivative, and peak
+    landmarks overlaid on individual traces
+
+## 2026-05-07 14:51:00 JST
+
+- Explored the user's hypothesis that the visible pre- and post-peak
+  notches in the aligned event waveforms may be better event boundaries
+  than the current minimum-within-window rule.
+- Added an alternative boundary estimator:
+  - `CODE/ACCELEROMETER/estimateEnvelopeEventDerivativeBoundaries.m`
+- Method:
+  - reuse existing detected peaks
+  - do not redetect events
+  - smooth the baseline-relative event signal
+  - compute first and second derivatives
+  - search pre- and post-peak windows for strong positive second-derivative
+    points on the flanks
+  - interpret those points as candidate curvature notches
+- Reference basis:
+  - user's analogy to action-potential derivative landmarks
+  - standard signal-processing use of smoothed derivatives to detect slope
+    and curvature transitions
+  - current local event functions, especially
+    `extractEnvelopeEventWaveforms` and `extractEnvelopeEvents`
+- First exploratory result on 586 isolated events:
+  - current median start offset: `-2.016 s`
+  - derivative median start offset: `-0.928 s`
+  - current median end offset: `1.376 s`
+  - derivative median end offset: `0.896 s`
+  - current median duration: `3.136 s`
+  - derivative median duration: `1.728 s`
+- Interpretation:
+  - derivative boundaries move the event limits inward toward the visually
+    apparent notches
+  - the result supports treating the notches as a plausible central-event
+    boundary hypothesis
+  - the approach still needs event-level QC because derivative extrema can
+    lock onto smaller shoulders or residual wiggles
+- Scratch notes and figures:
+  - `scratch/primitive_event_boundary_notches_20260507/NOTES.md`
+  - `scratch/primitive_event_boundary_notches_20260507/outputs/`
+
 ## 2026-05-06 20:01:12 JST
 
 - Built the current primitive-event analysis layer for Waseda chest

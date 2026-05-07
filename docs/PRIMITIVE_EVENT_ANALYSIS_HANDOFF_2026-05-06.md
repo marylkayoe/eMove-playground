@@ -259,9 +259,52 @@ The current compromise is:
 
 This is still provisional.
 
-## 6. Current Outputs
+## 6. Derivative/Notch Boundary Exploration
 
-### 6.1 Folder-level analysis function
+After the main event workflow was established, an exploratory boundary layer
+was tested because the averaged event waveforms showed visible notches on
+both sides of the peak.
+
+This layer is documented in:
+
+- [DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md)
+
+The exploratory function is:
+
+- [estimateEnvelopeEventDerivativeBoundaries.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/estimateEnvelopeEventDerivativeBoundaries.m)
+
+Important status:
+
+- it reuses existing detected peaks
+- it does not redetect events
+- it works on the baseline-relative event signal
+- it searches for positive second-derivative notches on the pre- and
+  post-peak flanks
+- it is not yet part of the main detector or main event definition
+
+Current exploratory result across `586` isolated events:
+
+- derivative starts moved inward toward the pre-peak notch
+- derivative ends moved inward toward the post-peak notch
+- peak-aligned means still showed shoulder structure outside the notches
+- start-aligned means made the rise more coherent, but a post-start shoulder
+  or plateau remained
+
+Current interpretation:
+
+- notch-based boundaries are useful as a diagnostic hypothesis
+- they are not yet robust enough to replace the minimum-within-window rule
+- the dominant unresolved problem is contamination from nearby subthreshold
+  event-like structure
+
+The next recommended step is not to change the detector immediately. A safer
+next layer is an event-level contamination score based on secondary local
+maxima, valley depth, extra outside-core area, or derivative landmarks outside
+the candidate core.
+
+## 7. Current Outputs
+
+### 7.1 Folder-level analysis function
 
 Current entry point:
 
@@ -285,7 +328,7 @@ Returned structure includes:
 - `meanWaveformTable`
 - `figureHandles`
 
-### 6.2 Latest saved outputs
+### 7.2 Latest saved outputs
 
 Current scratch output folder:
 
@@ -315,12 +358,12 @@ Note:
 - `analysisOutput_current.mat` is large, about `57 MB`, because it contains
   the compiled MATLAB output structure with waveform data and figure handles
 
-## 7. Current Quantitative Results
+## 8. Current Quantitative Results
 
 These results are from the current isolated-event configuration, not the
 earlier all-event runs.
 
-### 7.1 Condition-level summary
+### 8.1 Condition-level summary
 
 From [condition_summary_current.csv](/Users/yoe/Documents/REPOS/eMove-playground/scratch/waseda_event_summary_20260506/function_outputs/condition_summary_current.csv):
 
@@ -342,7 +385,7 @@ Current descriptive read:
 - video events are slightly wider by the detector width metric
 - video events are more widely spaced
 
-### 7.2 Subject-level summary
+### 8.2 Subject-level summary
 
 From [subject_summary_current.csv](/Users/yoe/Documents/REPOS/eMove-playground/scratch/waseda_event_summary_20260506/function_outputs/subject_summary_current.csv):
 
@@ -374,7 +417,7 @@ Current descriptive read:
 - `sub3` remains especially sparse and slow
 - `sub4` remains intermediate but with relatively broad detector widths
 
-### 7.3 File-level summary
+### 8.3 File-level summary
 
 From [file_summary_current.csv](/Users/yoe/Documents/REPOS/eMove-playground/scratch/waseda_event_summary_20260506/function_outputs/file_summary_current.csv):
 
@@ -427,11 +470,11 @@ Current descriptive read:
 - `sub2` shows a different pattern, with video events becoming wider and much
   more separated rather than larger
 
-## 8. Important Assumptions And Caveats
+## 9. Important Assumptions And Caveats
 
 These are essential for any replication attempt.
 
-### 8.1 This is not a validated primitive-event detector
+### 9.1 This is not a validated primitive-event detector
 
 The workflow is still exploratory.
 
@@ -441,7 +484,7 @@ It is best thought of as:
   envelope
 - with one particular thresholding, merging, and boundary logic
 
-### 8.2 Detection and shape analysis are coupled
+### 9.2 Detection and shape analysis are coupled
 
 Changing any of these can substantially change the event sample:
 
@@ -451,14 +494,14 @@ Changing any of these can substantially change the event sample:
 - pre-peak lookback window
 - post-peak lookahead window
 
-### 8.3 Isolated-event filtering is detector-dependent
+### 9.3 Isolated-event filtering is detector-dependent
 
 Compound-event exclusion depends on the detected peaks.
 
 If a small neighboring fluctuation is not detected as a peak, a compound event
 can still survive the isolation filter.
 
-### 8.4 Scalar summaries and shape summaries are not identical objects
+### 9.4 Scalar summaries and shape summaries are not identical objects
 
 Scalar summaries use:
 
@@ -474,7 +517,7 @@ Shape summaries use:
 So the scalar metrics and the shape plots are related but not identical views
 of the same object.
 
-### 8.5 Processing should stay index-based
+### 9.5 Processing should stay index-based
 
 The current code has been checked so that event-decision logic operates in
 sample-index space.
@@ -487,7 +530,7 @@ Seconds are used only to:
 
 Another agent should preserve that principle.
 
-## 9. Recommended Replication Plan For Another Dataset
+## 10. Recommended Replication Plan For Another Dataset
 
 If another agent is asked to reproduce this on a new dataset, the safe order is:
 
@@ -512,7 +555,7 @@ Recommended first comparison questions on a new dataset:
 - are detector widths and amplitudes positively related?
 - does video-like context make events sparser, larger, or both?
 
-## 10. What Another Agent Should Not Assume
+## 11. What Another Agent Should Not Assume
 
 Another agent should not assume that:
 
@@ -523,7 +566,7 @@ Another agent should not assume that:
 
 Those are open questions.
 
-## 11. Minimal Practical Commands
+## 12. Minimal Practical Commands
 
 To rerun the current analysis in MATLAB:
 
@@ -556,7 +599,7 @@ sub3 = Tisolated(Tisolated.subjectID == "sub3", :);
 sub4 = Tisolated(Tisolated.subjectID == "sub4", :);
 ```
 
-## 12. Bottom Line
+## 13. Bottom Line
 
 Current best working interpretation:
 

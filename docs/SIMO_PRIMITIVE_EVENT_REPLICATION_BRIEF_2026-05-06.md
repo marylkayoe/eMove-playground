@@ -359,6 +359,22 @@ Many seemingly single events actually have extra bumps or tails.
 A major reason for the isolated-event filter is to avoid averaging compound
 shapes and calling the result a primitive event.
 
+Current limitation:
+
+- the isolation filter only sees other detected peaks
+- a smaller neighboring bump can fail detection but still contaminate the
+  waveform
+- therefore "isolated" currently means isolated from detected neighboring
+  peaks, not necessarily isolated from all nearby movement structure
+
+Recommended future improvement:
+
+- keep the first-pass detector unchanged
+- score each event for local contamination
+- inspect secondary local maxima, valley depth, and signal area outside the
+  main event core
+- regenerate morphology summaries after excluding high-contamination events
+
 ### 7.3 Baseline-relative signal is not the raw envelope
 
 Current event-shape plots are based on:
@@ -384,6 +400,29 @@ That is acceptable. The key is to preserve the logic of:
 - isolated-event filtering
 - aligned waveform comparison
 - normalized wavelet similarity
+
+### 7.5 Event boundaries are not settled
+
+An exploratory derivative/notch boundary method was tested in the MATLAB
+repository. It reused the existing detected peaks, then searched the
+baseline-relative signal for smoothed second-derivative landmarks on both
+sides of the peak.
+
+Current read:
+
+- the derivative landmarks often move boundaries toward visually obvious
+  notches
+- peak-aligned and start-aligned means suggest the method is informative
+- residual shoulders remain, probably because nearby subthreshold events
+  still contaminate the accepted event set
+- this is a diagnostic layer, not a final primitive-event definition
+
+The practical advice for a from-scratch implementation is:
+
+- first reproduce the simpler minimum-within-window event boundaries
+- then add derivative/notch landmarks as an optional QC or comparison layer
+- do not silently replace the detector or boundary rule without comparing
+  outputs side by side
 
 ## 8. Recommendation To Simo
 

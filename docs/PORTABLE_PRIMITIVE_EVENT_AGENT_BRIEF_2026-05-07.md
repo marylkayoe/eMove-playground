@@ -244,6 +244,13 @@ After boundary exclusions in the grant-oriented onset-aligned pass:
 These numbers are useful for reproducing the current analysis but should not
 be treated as final population estimates.
 
+The current folder-level condition/subject comparison run reports:
+
+- unitary anchors: `205`,
+- compound anchors: `534`,
+- onset-aligned waveform snippets after boundary-window exclusion:
+  `204` unitary and `534` compound.
+
 ## Key MATLAB Files In This Repository
 
 Core tracked functions:
@@ -255,22 +262,36 @@ Core tracked functions:
 - `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`,
 - `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`.
 
-Current scratch analysis scripts:
+Current tracked analysis scripts:
 
-- `scratch/unitary_event_validation_20260508/run_unitary_event_validation_study.m`,
-- `scratch/unitary_event_validation_20260508/run_compound_event_decomposition_study.m`,
-- `scratch/unitary_event_validation_20260508/run_valley_lobe_compound_decomposition_study.m`,
-- `scratch/unitary_event_validation_20260508/run_temporal_coherence_analysis.m`,
-- `scratch/unitary_event_validation_20260508/run_min_peak_distance_temporal_sensitivity.m`,
-- `scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m`.
+- `scripts/run_unitary_event_validation_study.m`,
+- `scripts/run_compound_event_decomposition_study.m`,
+- `scripts/run_valley_lobe_compound_decomposition_study.m`,
+- `scripts/run_temporal_coherence_analysis.m`,
+- `scripts/run_min_peak_distance_temporal_sensitivity.m`,
+- `scripts/run_grant_event_shape_interval_visualization.m`,
+- `scripts/make_onset_aligned_grant_figures.m`,
+- `scripts/run_waseda_event_class_pipeline.m`.
 
 Important current output figures:
 
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_event_class_grouped_mean_waveforms.png`,
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_cdfs_by_condition_and_event_class.png`,
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_cdfs_by_subject_and_event_class.png`,
 - `scratch/unitary_event_validation_20260508/outputs/grant_onset_aligned_unitary_vs_compound_event_shapes.png`,
 - `scratch/unitary_event_validation_20260508/outputs/grant_lar_trace_1500_2500s_unitary_compound_peaks.png`,
 - `scratch/unitary_event_validation_20260508/outputs/temporal_coherence_subpeak_timing.png`,
 - `scratch/unitary_event_validation_20260508/outputs/event_vs_random_motion_support.png`,
 - `scratch/unitary_event_validation_20260508/outputs/normalized_similarity_controls.png`.
+
+To regenerate the promoted condition/subject comparison figures:
+
+```zsh
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('scripts/run_waseda_event_class_pipeline.m')"
+```
+
+Set `WASEDA_ACC_MAGNITUDES` first if the Waseda magnitude files are not in the
+default Dropbox or local converted-data paths.
 
 ## Figure-Saving Rule For MATLAB
 

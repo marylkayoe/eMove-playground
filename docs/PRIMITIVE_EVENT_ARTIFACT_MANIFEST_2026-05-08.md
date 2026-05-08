@@ -16,8 +16,15 @@ These are the repository files worth keeping as durable pipeline components:
 - `CODE/ACCELEROMETER/extractEnvelopeEventWaveforms.m`
 - `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`
 - `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`
+- `scripts/run_unitary_event_validation_study.m`
+- `scripts/run_compound_event_decomposition_study.m`
+- `scripts/run_valley_lobe_compound_decomposition_study.m`
+- `scripts/run_temporal_coherence_analysis.m`
+- `scripts/run_min_peak_distance_temporal_sensitivity.m`
+- `scripts/run_grant_event_shape_interval_visualization.m`
+- `scripts/make_onset_aligned_grant_figures.m`
 
-The two files changed in the current round are:
+Earlier detector-support changes from this work were:
 
 - `CODE/ACCELEROMETER/extractEnvelopeEvents.m`
 - `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`
@@ -42,14 +49,23 @@ Exploratory outputs remain intentionally untracked under:
 This folder contains the active exploratory scripts, tables, figures, and
 workspaces from the Waseda primitive-event validation work.
 
-## Most Important Scratch Scripts
+## Recovered Reproduction Scripts
 
-- `scratch/unitary_event_validation_20260508/run_unitary_event_validation_study.m`
-- `scratch/unitary_event_validation_20260508/run_compound_event_decomposition_study.m`
-- `scratch/unitary_event_validation_20260508/run_valley_lobe_compound_decomposition_study.m`
-- `scratch/unitary_event_validation_20260508/run_temporal_coherence_analysis.m`
-- `scratch/unitary_event_validation_20260508/run_min_peak_distance_temporal_sensitivity.m`
-- `scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m`
+The reusable MATLAB entry points have been recovered from scratch and promoted
+to `scripts/`. They still write generated MAT files, figures, reports, and
+tables under `scratch/unitary_event_validation_20260508/`.
+
+- `scripts/run_unitary_event_validation_study.m`
+- `scripts/run_compound_event_decomposition_study.m`
+- `scripts/run_valley_lobe_compound_decomposition_study.m`
+- `scripts/run_temporal_coherence_analysis.m`
+- `scripts/run_min_peak_distance_temporal_sensitivity.m`
+- `scripts/run_grant_event_shape_interval_visualization.m`
+- `scripts/make_onset_aligned_grant_figures.m`
+
+`scripts/run_grant_event_shape_interval_visualization.m` is included because
+`scripts/make_onset_aligned_grant_figures.m` depends on the workspace it
+generates.
 
 ## Most Important Scratch Figures
 
@@ -77,7 +93,20 @@ generated outputs:
 Run the current grant-oriented figure generation from the repository root:
 
 ```zsh
-/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_onset_aligned_grant_figures.m')"
+```
+
+If rebuilding the scratch results from source, run the relevant scripts in this
+order:
+
+```zsh
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_unitary_event_validation_study.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_compound_event_decomposition_study.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_valley_lobe_compound_decomposition_study.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_temporal_coherence_analysis.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_min_peak_distance_temporal_sensitivity.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/run_grant_event_shape_interval_visualization.m')"
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scripts/make_onset_aligned_grant_figures.m')"
 ```
 
 ## Cleanup Candidates Not Staged

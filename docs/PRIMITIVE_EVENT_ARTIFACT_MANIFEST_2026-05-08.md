@@ -1,0 +1,129 @@
+# Primitive Event Artifact Manifest
+
+Date: 2026-05-08
+
+This manifest lists the key artifacts from the acceleration primitive-event
+analysis so they can be found by another human or agent without searching the
+scratch folder manually.
+
+## Current Tracked Source Artifacts
+
+These are the repository files worth keeping as durable pipeline components:
+
+- `CODE/ANALYSIS/estimateLocalSignalNoise.m`
+- `CODE/ACCELEROMETER/detectEnvelopeEvents.m`
+- `CODE/ACCELEROMETER/extractEnvelopeEvents.m`
+- `CODE/ACCELEROMETER/extractEnvelopeEventWaveforms.m`
+- `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`
+- `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`
+
+The two files changed in the current round are:
+
+- `CODE/ACCELEROMETER/extractEnvelopeEvents.m`
+- `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`
+
+## Current Tracked Documentation Artifacts
+
+Use these as the starting point for future work:
+
+- `docs/SIMO_PRIMITIVE_EVENT_REPLICATION_BRIEF_2026-05-06.md`
+- `docs/PORTABLE_PRIMITIVE_EVENT_AGENT_BRIEF_2026-05-07.md`
+- `docs/PRIMITIVE_EVENT_ANALYSIS_HANDOFF_2026-05-06.md`
+- `docs/PRIMITIVE_EVENT_ARTIFACT_MANIFEST_2026-05-08.md`
+- `docs/JOURNAL_2026-05-08.md`
+- `docs/DEVELOPMENT_LOG.md`
+
+## Scratch Analysis Folder
+
+Exploratory outputs remain intentionally untracked under:
+
+`scratch/unitary_event_validation_20260508/`
+
+This folder contains the active exploratory scripts, tables, figures, and
+workspaces from the Waseda primitive-event validation work.
+
+## Most Important Scratch Scripts
+
+- `scratch/unitary_event_validation_20260508/run_unitary_event_validation_study.m`
+- `scratch/unitary_event_validation_20260508/run_compound_event_decomposition_study.m`
+- `scratch/unitary_event_validation_20260508/run_valley_lobe_compound_decomposition_study.m`
+- `scratch/unitary_event_validation_20260508/run_temporal_coherence_analysis.m`
+- `scratch/unitary_event_validation_20260508/run_min_peak_distance_temporal_sensitivity.m`
+- `scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m`
+
+## Most Important Scratch Figures
+
+These figures are useful for discussion and grant preparation but remain
+generated outputs:
+
+- `scratch/unitary_event_validation_20260508/outputs/grant_onset_aligned_unitary_vs_compound_event_shapes.png`
+- `scratch/unitary_event_validation_20260508/outputs/grant_lar_trace_1500_2500s_unitary_compound_peaks.png`
+- `scratch/unitary_event_validation_20260508/outputs/temporal_coherence_subpeak_timing.png`
+- `scratch/unitary_event_validation_20260508/outputs/event_vs_random_motion_support.png`
+- `scratch/unitary_event_validation_20260508/outputs/normalized_similarity_controls.png`
+- `scratch/unitary_event_validation_20260508/outputs/valley_lobe_decomposition_examples.png`
+
+## Most Important Scratch Tables
+
+- `scratch/unitary_event_validation_20260508/tables/grant_onset_aligned_bouts.csv`
+- `scratch/unitary_event_validation_20260508/tables/temporal_coherence_summary.csv`
+- `scratch/unitary_event_validation_20260508/tables/temporal_coherence_intervals.csv`
+- `scratch/unitary_event_validation_20260508/tables/min_peak_distance_temporal_sensitivity_summary.csv`
+- `scratch/unitary_event_validation_20260508/tables/valley_lobe_anchor_decomposition.csv`
+- `scratch/unitary_event_validation_20260508/tables/event_validation_table.csv`
+
+## Current Reproduction Command
+
+Run the current grant-oriented figure generation from the repository root:
+
+```zsh
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('/Users/yoe/Documents/REPOS/eMove-playground/scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m')"
+```
+
+## Cleanup Candidates Not Staged
+
+The following untracked files appeared during exploratory work and should not
+be committed unless explicitly curated:
+
+- `example.fig`
+- `example.png`
+- `figures/WASEDA_ACC_PRIMITIVE_EVENTS_20260506/ExampleTraceLong.eps`
+- `figures/WASEDA_ACC_PRIMITIVE_EVENTS_20260506/ExampleTraceLong.fig`
+- `figures/WASEDA_ACC_PRIMITIVE_EVENTS_20260506/ExampleTraceZoom.eps`
+
+Per repository policy, these are listed rather than deleted automatically.
+
+## Current Working Definition To Preserve
+
+Primary events are peaks in `eventSignal`, where:
+
+```text
+eventSignal = max(motionEnvelope - localBaseline, 0)
+```
+
+Primary event threshold:
+
+```text
+4 * median(noiseSigma)
+```
+
+Compound-bout subpeaks:
+
+```text
+2 * median(noiseSigma)
+minimum subpeak distance = 0.35 s
+```
+
+Compound-bout split rule:
+
+```text
+split adjacent subpeaks if valley < 0.50 * min(leftPeak, rightPeak)
+```
+
+For trace figures, the gray shaded detector region should be:
+
+```text
+localBaseline + 4 * median(noiseSigma)
+```
+
+not `localBaseline + 4 * localNoiseSigma`.

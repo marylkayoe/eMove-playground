@@ -1,558 +1,327 @@
-# Portable Primitive Event Agent Brief (2026-05-07)
+# Portable Primitive Event Agent Brief
 
-This document is meant to be copied into another repository where we will
-work on related accelerometer-envelope analyses with Simo.
+Updated: 2026-05-08
 
-The goal is not to preserve MATLAB syntax. The goal is to preserve:
+This document is for another agent, including Simo's Claude, continuing the
+acceleration primitive-event analysis outside this thread. It is self-contained
+and intentionally avoids assuming access to the current MATLAB workspace.
 
-- the scientific question
-- the current hypotheses
-- the important implementation choices
-- the minimal analysis functions that need to exist
-- the main failure modes and cautions
+## Goal
 
-Use this as an agent-facing brief.
+The scientific goal is to test whether low-amplitude residual motion during
+LAR can be described as discrete primitive-like acceleration events, and
+whether larger motion episodes are structured compounds of those events.
 
-## 1. Core Question
+Use cautious language:
 
-We are looking for a possible primitive event-like fluctuation in a
-movement-envelope signal derived from accelerometer data.
+- preferred: "acceleration-supported primitive-like events",
+- preferred: "valley-delimited compound bouts",
+- avoid: "proven motor primitives" unless held-out physiological validation is
+  completed.
 
-The working question is:
+The current working claim:
 
-- does the envelope contain a recurring event morphology that is relatively
-  stable across subjects and contexts, even if amplitude and timing vary?
+> LAR micromotion includes repeatable acceleration-supported event-like motifs,
+> and many larger bouts contain multiple such motifs arranged with non-random
+> subsecond timing.
 
-This means we care about three partially separate things:
+## Input Data Expected
 
-1. event amplitude
-2. event timing / inter-event intervals
-3. event shape
+The downstream analysis assumes one envelope-like movement signal per trial or
+recording, plus a sampling rate.
 
-The current hypothesis is:
+Possible inputs:
 
-- amplitude may be subject- and context-dependent
-- inter-event interval may be subject- and context-dependent
-- normalized event shape may be more conserved
+- gravity-corrected accelerometer magnitude,
+- accelerometer-derived motion envelope,
+- marker-derived speed or acceleration envelope,
+- another one-dimensional movement-intensity trace.
 
-So the shape question should not be collapsed into amplitude or rate.
+If raw accelerometer and orientation/quaternion data are available, keep them.
+They are needed to check whether event times have support in
+gravity-corrected acceleration rather than only in the processed envelope.
 
-## 2. Signal Assumptions
+## Signal Definitions
 
-The analysis assumes one 1D envelope-like signal per trial or recording.
+`raw acceleration`: three-axis sensor acceleration, including body motion,
+gravity, orientation effects, and possible contact artifacts.
 
-That signal may come from:
+`gravity-corrected acceleration`: acceleration after using orientation to
+subtract gravity. This is the main physical-support check.
 
-- gravity-corrected accelerometer magnitude
-- band-limited movement energy
-- RMS envelope of acceleration magnitude
-- or another comparable movement-envelope representation
+`motion envelope`: positive one-dimensional motion-intensity signal derived
+from acceleration or motion capture.
 
-The upstream preprocessing can vary by project, but the downstream event
-analysis assumes:
+`baseline`: slow local background of the motion envelope.
 
-- one numeric signal vector
-- one known sampling frequency
-- enough duration to estimate local baseline and local noise
+`residual`: motion envelope minus local baseline.
 
-## 3. Main Conceptual Insight
-
-The useful signal for event detection is usually not the raw envelope
-itself.
-
-A better working signal is:
-
-- local-baseline-relative
-- upward-only
-- noise-aware
-
-So the current event workflow uses a derived signal:
-
-- `residual = signal - baseline`
-- `eventSignal = max(residual, 0)`
-
-This does two things:
-
-1. it removes slow local drift
-2. it makes the event-shape question easier to interpret as "fluctuation
-   above local baseline"
-
-Important:
-
-- shape plots based on `eventSignal` are not raw-envelope shapes
-- they are baseline-relative, rectified event shapes
-
-That distinction should remain explicit in any future repository.
-
-## 4. Current Working Hypotheses
-
-### 4.1 Event existence hypothesis
-
-The envelope may contain repeatable local burst-like events rather than
-only diffuse fluctuation.
-
-### 4.2 Subject/context hypothesis
-
-Subjects and contexts may differ strongly in:
-
-- how often events happen
-- how large they are
-- how widely spaced they are
-
-These differences do not rule out a shared event morphology.
-
-### 4.3 Morphology hypothesis
-
-After normalization, event waveforms or event-centered time-frequency maps
-may look more similar across conditions than raw amplitudes do.
-
-### 4.4 Negative possibility
-
-It may turn out there is no single primitive event class, only a mixture of:
-
-- isolated simple events
-- compound events
-- weak local fluctuations
-- detector-dependent fragments
-
-So all downstream claims should be framed as exploratory until that is
-tested carefully.
-
-## 5. Practical Analysis Logic
-
-The current logic can be implemented in any language.
-
-### Step 1. Estimate local baseline and local noise
-
-Input:
-
-- `signal`
-- `samplingFrequency`
-
-Output:
-
-- `baseline`
-- `residual`
-- `eventSignal`
-- `noiseSigma`
-
-Recommended current defaults:
-
-- baseline window: `15 s`
-- noise window: `30 s`
-- rectify residual: `true`
-
-### Step 2. Detect candidate peaks
-
-Detect peaks on `eventSignal`, not on the raw signal.
-
-Current practical defaults:
-
-- threshold: about `4 * noise`
-- minimum peak spacing: about `0.5 s`
-
-There is also a valley rule to avoid over-splitting or under-splitting close
-peaks.
-
-Current working detector parameter:
-
-- `valleyFraction = 0.2`
-
-Exact implementation can differ by language, but conceptually it should:
-
-- find local maxima
-- reject noise-level maxima
-- avoid creating duplicate peaks from one broad event
-- still allow close peaks if a real valley separates them
-
-### Step 3. Flag compound events
-
-This is important because many suspicious mean-waveform results come from
-averaging multi-peak or overlapping events as if they were primitive events.
-
-Current compound-event rule:
-
-- flag as compound if another detected peak occurs:
-  - within `1.0 s` before the peak
-  - or within `4.0 s` after the peak
-
-This produces:
-
-- `isCompoundEvent`
-- `isIsolatedEvent`
-
-Current shape summaries are built from isolated events only.
-
-### Step 4. Extract aligned event snippets
-
-Current event-boundary rule:
-
-- start = minimum before peak within the last `2.0 s`
-- end = minimum after peak within the next `2.0 s`
-
-Alignment:
-
-- align by peak
-
-Important implementation rule:
-
-- do event extraction and alignment in sample-index space
-- do not use per-event original time vectors to define aligned x-axes
-
-Instead use one shared relative sample vector:
+`eventSignal`: positive baseline-relative event signal:
 
 ```text
-relativeSampleIndex = -preSamples : postSamples
-relativeTimeSec = relativeSampleIndex / samplingFrequency
+eventSignal = max(motionEnvelope - baseline, 0)
 ```
 
-Then store snippets as:
+Peaks are detected in `eventSignal`, not directly in the raw envelope.
 
-- rows = relative samples
-- columns = events
+`noiseSigma`: robust local variability estimate from the residual.
 
-This matters because averaging event-specific time axes caused small
-backward/zigzag horizontal artifacts in mean plots.
+`event`: a primary peak in `eventSignal` above threshold.
 
-### Step 5. Compute scalar event summaries
+`subpeak`: a lower-threshold peak inside a broader event neighborhood.
 
-At minimum keep:
+`bout`: a valley-delimited group of subpeaks treated as one movement episode.
 
-- detector amplitude
-- detector width
-- inter-event interval
+`unitary bout`: a bout with one detected subpeak.
 
-The detector width and extractor width are not the same quantity. Keep that
-explicit.
+`compound bout`: a bout with two or more detected subpeaks.
 
-For current summary plots, detector width is the main width metric.
+`temporal coherence`: non-random timing of secondary subpeaks within compound
+bouts.
 
-### Step 6. Compare waveform morphology
+## Current Algorithm Specification
 
-Build mean aligned waveforms by:
+### 1. Baseline And Noise
 
-- file
-- subject
-- condition
+For each signal vector:
 
-Useful normalized view:
+```text
+baseline = moving median(signal, 15 s)
+residual = signal - baseline
+eventSignal = max(residual, 0)
+absoluteDeviation = abs(residual - moving median(residual, 30 s))
+localMad = moving median(absoluteDeviation, 30 s)
+noiseSigma = 1.4826 * localMad
+```
 
-- shift each event so its first value is 0
-- optionally normalize peak to 1
+Replace zero or invalid `noiseSigma` values with a global robust residual MAD.
 
-This gives:
+The detector threshold in event-signal units is:
 
-- raw aligned mean shape
-- peak-normalized aligned mean shape
+```text
+primaryThreshold = 4 * median(noiseSigma)
+```
 
-### Step 7. Compare wavelet morphology
+The same threshold in original envelope units is:
 
-Add a separate event-aligned wavelet layer without changing the detector.
+```text
+envelopeThreshold = baseline + 4 * median(noiseSigma)
+```
 
-Current logic:
+This is the shaded/noise threshold shown in the current example trace figure.
 
-1. use existing detected peaks
-2. extract a fixed peak-centered window, currently `[-5 5] s`
-3. work from baseline-relative `eventSignal`
-4. subtract snippet median
-5. normalize snippet by max absolute amplitude
-6. compute CWT
-7. use `abs(CWT)`
-8. normalize each wavelet map by its own maximum
+### 2. Primary Event Detection
 
-Then compute:
+Detect local maxima in `eventSignal` with:
 
-- mean normalized wavelet map by condition
-- mean normalized wavelet map by subject
-- event-event wavelet similarity matrix
-- within/between condition similarity distributions
-- within/between subject similarity distributions
+- minimum peak height: `4 * median(noiseSigma)`,
+- minimum peak distance: `0.5 s`.
 
-Similarity metric:
+Then apply a peak-merging valley rule:
 
-- correlation of flattened normalized wavelet maps
+- if two candidate primary peaks are not separated by a valley below
+  `0.20 * min(leftPeak, rightPeak)`, treat them as the same primary event and
+  keep the larger peak.
 
-### Step 8. Random control
+This 0.20 rule belongs to primary peak de-duplication. Do not confuse it with
+the compound-bout valley rule below.
 
-The wavelet analysis should include a random-window control.
+### 3. Compound-Bout Decomposition
 
-For each file:
+For each primary event anchor, search nearby for lower-threshold subpeaks:
 
-- sample random non-event windows
-- avoid the event windows
-- compute the same normalized wavelet maps
+- search window around anchor: `[-1.5, +4.5] s`,
+- subpeak threshold: `2 * median(noiseSigma)`,
+- subpeak minimum distance: `0.35 s`.
 
-Then compare:
+Group adjacent subpeaks into the same bout unless there is a deep recovery
+valley between them.
 
-- event-event similarity
-- event-random similarity
+Current compound-bout split rule:
 
-This tests whether detected event structure is more self-similar than random
-background fluctuation.
+```text
+split if valleyBetweenPeaks < 0.50 * min(leftPeak, rightPeak)
+```
 
-## 6. Key Implementation Principles
+The bout containing the anchor peak is the anchor's same-bout decomposition.
 
-These are more important than the exact language.
+Fields used in the MATLAB pipeline:
 
-### 6.1 Work in indices internally
+- `nSameBoutSubpeaks`,
+- `sameBoutSubpeakIndicesText`,
+- `sameBoutSubpeakTimesRelativeSecText`,
+- `activeSubpeakSpanSec`,
+- `isCompoundEvent = nSameBoutSubpeaks >= 2`,
+- `isIsolatedEvent = nSameBoutSubpeaks == 1`.
 
-Do detection, alignment, neighbor checks, and snippet extraction in sample
-indices.
+Older proximity-only fields may also exist:
 
-Convert to seconds only for:
+- `hasNearbyPeak`,
+- `isNearbyPeakEvent`.
 
-- reporting
-- plotting
-- exported summary tables
+Use the valley-delimited fields for physiological compound-bout analysis. Use
+the proximity-only fields only as contamination/context flags.
 
-### 6.2 Keep the detector and downstream summaries separate
+### 4. Event Shape Summaries
 
-Do not let downstream waveform logic silently change which peaks exist.
+For grant-style shape plots, align snippets at the estimated onset of the
+first subpeak in the bout, not at the dominant peak. This prevents compound
+events from looking artificially short due to peak alignment.
 
-The clean split is:
+For secondary subpeak timing, calculate delays from the first subpeak peak,
+not from onset.
 
-1. baseline/noise estimation
-2. peak detection
-3. compound-event flagging
-4. waveform extraction
-5. wavelet similarity
+Recommended summary panels:
 
-### 6.3 Keep normalized-shape analyses distinct from amplitude analyses
+- onset-aligned mean `eventSignal` waveform for unitary vs compound bouts,
+- compound-bout raster sorted by first-peak timing,
+- compound-bout raster sorted by duration,
+- peak latency after onset,
+- secondary subpeak timing from first peak,
+- within-compound inter-subpeak interval histogram clipped to 0-1.5 s,
+- inter-compound interval histogram clipped to 0-20 s.
 
-Do not mix these interpretations.
+Use enough bins to show structure. Avoid very coarse histograms.
 
-If waveforms or wavelet maps are normalized, state clearly:
+### 5. Physical-Support Checks
 
-- this is testing morphology, not amplitude
+For each detected event or subpeak, compare event-centered windows with
+matched random windows from the same recording.
 
-### 6.4 Preserve inspectable intermediate products
+Useful metrics:
 
-At minimum keep access to:
+- gravity-corrected event/random RMS ratio,
+- filtered-magnitude event/random RMS ratio,
+- eventSignal event/random RMS ratio,
+- waveform similarity between events and between random windows.
 
-- baseline
-- residual
-- eventSignal
-- peak locations
-- compound flags
-- aligned waveform matrix
-- event table
-- event-centered wavelet maps
+The Waseda result so far:
 
-If these are hidden, it becomes too hard to debug why summary plots look odd.
+- median gravity-corrected event/random RMS ratio: `1.326`,
+- median filtered-magnitude event/random RMS ratio: `1.423`,
+- median eventSignal event/random RMS ratio: `2.340`,
+- 77.0% of events had gravity-corrected event/random ratio above 1.
 
-## 7. Minimal Function Set To Recreate
+Interpretation: events usually carry real acceleration support, but this does
+not prove physiology by itself.
 
-The names do not need to match exactly, but the roles should.
+### 6. Temporal-Coherence Tests
 
-### Function 1. Baseline/noise estimation
+Temporal coherence asks whether subpeaks inside compound bouts occur at
+structured delays.
 
-Suggested role:
+Avoid counting the anchor peak as evidence for timing structure. Deduplicate
+physical bouts, remove the alignment peak from secondary timing histograms,
+and compare against a null model.
 
-- `estimateLocalSignalNoise(signal, samplingFrequency, ...)`
+Recommended null:
 
-Should return:
+- preserve each compound bout's active duration,
+- preserve each bout's number of secondary subpeaks,
+- randomly place those secondary subpeaks uniformly inside the active span.
 
-- `baseline`
-- `residual`
-- `eventSignal`
-- `noiseSigma`
+Current Waseda result:
 
-### Function 2. Peak detection
+- median adjacent within-compound interval: `0.608 s`,
+- fraction below 700 ms: `0.673`,
+- fraction below 1 s: `0.884`,
+- observed timing distribution departs from the uniform-within-bout null.
 
-Suggested role:
+Do not interpret the 0.35 s minimum subpeak distance as a biological
+refractory period. It is detector resolution.
 
-- `detectEnvelopeEvents(eventSignal, noiseSigma, ...)`
+## Current Waseda Summary
 
-Should return at least:
+After boundary exclusions in the grant-oriented onset-aligned pass:
 
-- peak indices
-- peak amplitudes
-- detector widths
+- usable bouts: `735`,
+- unitary bouts: `203`,
+- compound bouts: `532`,
+- fraction compound: `0.724`,
+- median compound subpeaks: `3`,
+- median compound active span: `1.184 s`.
 
-### Function 3. Waveform extraction
+These numbers are useful for reproducing the current analysis but should not
+be treated as final population estimates.
 
-Suggested role:
+## Key MATLAB Files In This Repository
 
-- `extractEnvelopeEventWaveforms(signal, peakIndices, ...)`
+Core tracked functions:
 
-Should return at least:
+- `CODE/ANALYSIS/estimateLocalSignalNoise.m`,
+- `CODE/ACCELEROMETER/detectEnvelopeEvents.m`,
+- `CODE/ACCELEROMETER/extractEnvelopeEvents.m`,
+- `CODE/ACCELEROMETER/extractEnvelopeEventWaveforms.m`,
+- `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`,
+- `CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m`.
 
-- aligned waveform matrix
-- shared relative sample/time vector
-- event table with boundaries and width metrics
+Current scratch analysis scripts:
 
-### Function 4. Trial-level wrapper
+- `scratch/unitary_event_validation_20260508/run_unitary_event_validation_study.m`,
+- `scratch/unitary_event_validation_20260508/run_compound_event_decomposition_study.m`,
+- `scratch/unitary_event_validation_20260508/run_valley_lobe_compound_decomposition_study.m`,
+- `scratch/unitary_event_validation_20260508/run_temporal_coherence_analysis.m`,
+- `scratch/unitary_event_validation_20260508/run_min_peak_distance_temporal_sensitivity.m`,
+- `scratch/unitary_event_validation_20260508/make_onset_aligned_grant_figures.m`.
 
-Suggested role:
+Important current output figures:
 
-- `extractEnvelopeEvents(signal, samplingFrequency, ...)`
+- `scratch/unitary_event_validation_20260508/outputs/grant_onset_aligned_unitary_vs_compound_event_shapes.png`,
+- `scratch/unitary_event_validation_20260508/outputs/grant_lar_trace_1500_2500s_unitary_compound_peaks.png`,
+- `scratch/unitary_event_validation_20260508/outputs/temporal_coherence_subpeak_timing.png`,
+- `scratch/unitary_event_validation_20260508/outputs/event_vs_random_motion_support.png`,
+- `scratch/unitary_event_validation_20260508/outputs/normalized_similarity_controls.png`.
 
-Should:
+## Figure-Saving Rule For MATLAB
 
-- call the three steps above
-- attach compound-event flags
-- return one structured output per recording
+When generating and saving MATLAB figures, always make the figure visible and
+portable before `savefig`.
 
-### Function 5. Folder- or dataset-level summary
+Use explicit figure handles. Do not rely on `gcf` unless unavoidable.
 
-Suggested role:
+Before `savefig`, set:
 
-- `analyzePrimitiveEvents(recordings, ...)`
+```matlab
+fig.Visible = 'on';
+fig.WindowStyle = 'normal';
+fig.WindowState = 'normal';
+fig.Units = 'pixels';
+fig.Position = [100 100 1200 600];
+drawnow;
+savefig(fig, filePath);
+```
 
-Should:
+When reopening saved `.fig` files:
 
-- run the trial-level extraction across all recordings
-- build one combined event table
-- build subject/condition summaries
-- generate core figures
+```matlab
+fig = openfig(filePath, 'reuse', 'visible');
+```
 
-### Function 6. Event-aligned wavelet similarity
+## Questions For Simo's Controlled Dataset
 
-Suggested role:
+Simo's Claude reportedly has accelerometer and motion-capture data from larger
+experiments where interoceptive state was appropriately controlled. Prioritize:
 
-- `analyzeEventAlignedWaveletSimilarity(analysisOutput, ...)`
+- Are event rates different by subject, context, or interoceptive state?
+- Are compound-bout fractions different by context/state?
+- Do compound-bout durations differ by subject or state?
+- Does secondary subpeak timing shift by context/state?
+- Are within-compound intervals clustered around similar subsecond delays?
+- Do event-shape templates trained on one subject generalize to held-out
+  subjects?
+- Do accelerometer-defined event times align with marker trajectory events?
+- Are marker-trajectory event shapes broader, delayed, or spatially localized
+  compared with accelerometer events?
+- Do event features explain condition differences better than median motion,
+  variance, jerkiness, or total acceleration?
 
-Should:
+## Validation Work Still Needed
 
-- reuse existing event peaks
-- not redetect events
-- compute normalized event-centered CWT maps
-- return similarity outputs and control summaries
+Before making a strong physiological claim:
 
-## 8. Expected Outputs
-
-At minimum, the future repository should be able to produce:
-
-### Event table
-
-Fields should include:
-
-- recording ID
-- subject ID
-- condition
-- peak index
-- peak time
-- amplitude
-- width
-- inter-event interval
-- compound flag
-- isolated flag
-
-### Figures
-
-Recommended core figures:
-
-1. grouped mean event waveforms
-2. amplitude CDFs by condition
-3. amplitude CDFs by subject
-4. inter-event interval CDFs by condition
-5. inter-event interval CDFs by subject
-6. width-amplitude scatter
-7. mean normalized wavelet maps by condition
-8. wavelet similarity matrix
-9. wavelet similarity CDFs
-10. random-control wavelet comparison
-
-### Stored analysis outputs
-
-One combined analysis object should retain:
-
-- per-recording outputs
-- full event table
-- grouped summary tables
-- waveform summaries
-- wavelet outputs
-
-## 9. Main Failure Modes To Watch
-
-### 9.1 Detector defines reality too strongly
-
-If the detector misses subpeaks or merges nearby peaks, downstream shape
-averages can become misleading.
-
-### 9.2 Compound events contaminate "primitive" means
-
-This is the main reason to keep isolated-event filtering explicit.
-
-The current isolated-event flag is still detector-dependent. It catches
-nearby detected peaks, but it does not catch smaller nearby bumps that fail
-to cross the detector threshold. Those subthreshold neighbors can still
-contaminate mean event shapes.
-
-Recommended next extension:
-
-- keep the detector unchanged
-- add an event-level contamination score
-- base it on secondary local maxima, valley depth, or extra signal outside
-  the candidate event core
-- use that score to filter or stratify morphology summaries
-
-### 9.3 Raw-envelope and eventSignal interpretations get mixed
-
-That causes confusion when discussing amplitude, baseline, and shape.
-
-### 9.4 Time-base handling becomes sloppy
-
-Aligned means should use a shared relative axis, not per-event original time
-vectors.
-
-### 9.5 Over-cleaning
-
-Do not erase legitimate small events by making preprocessing too aggressive.
-
-### 9.6 Boundary definition is still provisional
-
-A derivative/notch-based boundary layer was tested after visible notches
-appeared in peak-aligned mean waveforms.
-
-The exploratory logic:
-
-- reuse existing peaks
-- smooth the baseline-relative event signal
-- compute first and second derivatives
-- use positive second-derivative flank notches as candidate starts and ends
-
-Current read:
-
-- the method moves boundaries inward toward the visible notches
-- start-aligned means become cleaner on the rising side
-- shoulder or plateau structure remains in some groups
-- therefore the method is diagnostic, not yet a replacement for the main
-  event definition
-
-Details are documented in:
-
-- [DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/DERIVATIVE_BOUNDARY_EXPLORATION_2026-05-08.md)
-
-## 10. Current Strategic Insight
-
-The most important scientific idea to preserve is this:
-
-- there may not be one universally fixed event amplitude or rate
-- but there may still be a recurring normalized event morphology
-
-So the analysis should explicitly separate:
-
-- "how big or frequent are events?"
-from
-- "do the events look like variations of the same primitive shape?"
-
-## 11. Direct Message To A Future Agent
-
-If you are reading this in another repository:
-
-- do not start by inventing a broad framework
-- first recreate the logic above in small inspectable functions
-- keep all event decisions transparent
-- work in sample indices internally
-- treat waveform and wavelet normalization as morphology analysis, not
-  amplitude analysis
-
-If you can reproduce:
-
-- event tables
-- aligned mean waveforms
-- condition/subject CDF summaries
-- event-aligned normalized wavelet similarity
-
-then you have captured the core of the current approach.
+- calibrate the 0.50 valley rule against hand-labeled examples,
+- fit one-, two-, and three-element template models to compound bouts,
+- compare fitted-template residuals against random and surrogate windows,
+- validate templates on held-out subjects and datasets,
+- test accelerometer events against motion-capture marker trajectories,
+- report subject-level and context-level results before pooling.

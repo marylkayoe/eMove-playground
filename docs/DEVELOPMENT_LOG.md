@@ -4,6 +4,40 @@ This document tracks project state, implementation decisions, and validation run
 
 ## 2026-05-08
 
+### Waseda Acceleration Primitive-Event Handoff Consolidated
+
+- Updated the primitive-event handoff after the valley-delimited compound-bout
+  definition stabilized:
+  - [SIMO_PRIMITIVE_EVENT_REPLICATION_BRIEF_2026-05-06.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/SIMO_PRIMITIVE_EVENT_REPLICATION_BRIEF_2026-05-06.md)
+  - [PORTABLE_PRIMITIVE_EVENT_AGENT_BRIEF_2026-05-07.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/PORTABLE_PRIMITIVE_EVENT_AGENT_BRIEF_2026-05-07.md)
+  - [PRIMITIVE_EVENT_ARTIFACT_MANIFEST_2026-05-08.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/PRIMITIVE_EVENT_ARTIFACT_MANIFEST_2026-05-08.md)
+  - [JOURNAL_2026-05-08.md](/Users/yoe/Documents/REPOS/eMove-playground/docs/JOURNAL_2026-05-08.md)
+- Current event signal:
+  - `eventSignal = max(motionEnvelope - localBaseline, 0)`
+- Current primary detector threshold:
+  - `4 * median(noiseSigma)`
+- Current envelope-domain trace threshold:
+  - `localBaseline + 4 * median(noiseSigma)`
+- Current compound-bout definition:
+  - lower-threshold subpeaks are grouped into the same bout unless the valley
+    between adjacent subpeaks drops below
+    `0.50 * min(leftPeak, rightPeak)`
+  - lower subpeak threshold is `2 * median(noiseSigma)`
+  - subpeak minimum distance is `0.35 s`
+- Added reusable example-trace plotting helper:
+  - [plotEnvelopeEventsWithNoiseBand.m](/Users/yoe/Documents/REPOS/eMove-playground/CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m)
+- Current Waseda grant-oriented summary:
+  - usable bouts: `735`
+  - unitary bouts: `203`
+  - compound bouts: `532`
+  - fraction compound: `0.724`
+  - median compound subpeaks: `3`
+  - median compound active span: `1.184 s`
+- Current interpretation:
+  - the evidence supports acceleration-supported primitive-like events and
+    structured compound bouts
+  - it does not yet prove universal physiological motor primitives
+
 ### Waseda Primitive Event Boundary Exploration Paused
 
 - Documented the current derivative/notch boundary exploration:

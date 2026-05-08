@@ -25,6 +25,10 @@ function eventOutput = extractEnvelopeEvents(signal, samplingFrequency, varargin
 %   'MaxEndLookaheadSeconds'    default 2.0
 %   'CompoundPreWindowSeconds'  default 1.0
 %   'CompoundPostWindowSeconds' default 4.0
+%   'CompoundSearchWindowSeconds' default [-1.5 4.5]
+%   'CompoundSubpeakThresholdSigma' default 2
+%   'CompoundSubpeakMinDistanceSeconds' default 0.35
+%   'CompoundValleyFraction' default 0.50
 %   'MakeWaveformFigure'        default false
 %   'WaveformFigureTitle'       default "Extracted event waveforms"
 %   'MakeSummaryFigure'         default false
@@ -78,6 +82,18 @@ addParameter(inputParserObject, 'CompoundPreWindowSeconds', 1.0, ...
 
 addParameter(inputParserObject, 'CompoundPostWindowSeconds', 4.0, ...
     @(value) isnumeric(value) && isscalar(value) && value >= 0);
+
+addParameter(inputParserObject, 'CompoundSearchWindowSeconds', [-1.5 4.5], ...
+    @(value) isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) < value(2));
+
+addParameter(inputParserObject, 'CompoundSubpeakThresholdSigma', 2, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'CompoundSubpeakMinDistanceSeconds', 0.35, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'CompoundValleyFraction', 0.50, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0 && value < 1);
 
 addParameter(inputParserObject, 'MakeWaveformFigure', false, ...
     @(value) islogical(value) || isnumeric(value));
@@ -152,9 +168,17 @@ end
 if ~isempty(eventTable)
     eventTable.peakWidthSamples = peakWidthsSamples;
     eventTable.peakWidthSec = peakWidthsSec;
-    eventTable = localAddCompoundFlags(eventTable, samplingFrequency, ...
+    eventTable = localAddNearbyPeakFlags(eventTable, samplingFrequency, ...
         inputParserObject.Results.CompoundPreWindowSeconds, ...
         inputParserObject.Results.CompoundPostWindowSeconds);
+    eventTable = localAddValleyDelimitedCompoundBouts(eventTable, ...
+        noiseEstimate.eventSignal, ...
+        noiseEstimate.noiseSigma, ...
+        samplingFrequency, ...
+        inputParserObject.Results.CompoundSearchWindowSeconds, ...
+        inputParserObject.Results.CompoundSubpeakThresholdSigma, ...
+        inputParserObject.Results.CompoundSubpeakMinDistanceSeconds, ...
+        inputParserObject.Results.CompoundValleyFraction);
 end
 
 %% Package output
@@ -200,7 +224,7 @@ else
 end
 end
 
-function eventTable = localAddCompoundFlags(eventTable, samplingFrequency, compoundPreWindowSeconds, compoundPostWindowSeconds)
+function eventTable = localAddNearbyPeakFlags(eventTable, samplingFrequency, compoundPreWindowSeconds, compoundPostWindowSeconds)
 peakIndices = eventTable.peakIndex;
 
 nEvents = height(eventTable);
@@ -218,8 +242,89 @@ end
 
 eventTable.hasNeighborBefore = hasNeighborBefore;
 eventTable.hasNeighborAfter = hasNeighborAfter;
-eventTable.isCompoundEvent = hasNeighborBefore | hasNeighborAfter;
-eventTable.isIsolatedEvent = ~eventTable.isCompoundEvent;
+eventTable.hasNearbyPeak = hasNeighborBefore | hasNeighborAfter;
+eventTable.isNearbyPeakEvent = eventTable.hasNearbyPeak;
+end
+
+function eventTable = localAddValleyDelimitedCompoundBouts(eventTable, eventSignal, noiseSigma, ...
+    samplingFrequency, compoundSearchWindowSeconds, subpeakThresholdSigma, ...
+    subpeakMinDistanceSeconds, compoundValleyFraction)
+% Add the current compound-event definition.
+%
+% A compound event is a valley-delimited movement bout containing two or more
+% lower-threshold subpeaks. A deep valley splits adjacent subpeaks into
+% separate bouts even when they are close in time. The older proximity-only
+% logic is retained separately as hasNearbyPeak/isNearbyPeakEvent.
+
+peakIndices = eventTable.peakIndex;
+nEvents = height(eventTable);
+
+nSameBoutSubpeaks = zeros(nEvents, 1);
+sameBoutSubpeakIndicesText = strings(nEvents, 1);
+sameBoutSubpeakTimesRelativeSecText = strings(nEvents, 1);
+activeSubpeakSpanSec = zeros(nEvents, 1);
+
+typicalNoiseSigma = median(noiseSigma, 'omitnan');
+lowThreshold = subpeakThresholdSigma .* typicalNoiseSigma;
+minimumDistanceSamples = max(1, round(subpeakMinDistanceSeconds .* samplingFrequency));
+searchSamples = round(compoundSearchWindowSeconds .* samplingFrequency);
+
+for eventIndex = 1:nEvents
+    anchorPeakIndex = peakIndices(eventIndex);
+    searchIndices = (anchorPeakIndex + searchSamples(1)):(anchorPeakIndex + searchSamples(2));
+    searchIndices = searchIndices(searchIndices >= 1 & searchIndices <= numel(eventSignal));
+    searchSignal = eventSignal(searchIndices);
+
+    [~, localLocations] = findpeaks(searchSignal, ...
+        'MinPeakHeight', lowThreshold, ...
+        'MinPeakDistance', minimumDistanceSamples);
+    allSubpeaks = searchIndices(1) + localLocations - 1;
+    allSubpeaks = unique([allSubpeaks(:); anchorPeakIndex], 'stable');
+    allSubpeaks = sort(allSubpeaks(:));
+
+    [~, anchorPosition] = min(abs(allSubpeaks - anchorPeakIndex));
+    lobeStartPosition = anchorPosition;
+    while lobeStartPosition > 1
+        if localIsDeepValley(eventSignal, allSubpeaks(lobeStartPosition - 1), ...
+                allSubpeaks(lobeStartPosition), compoundValleyFraction)
+            break;
+        end
+        lobeStartPosition = lobeStartPosition - 1;
+    end
+
+    lobeEndPosition = anchorPosition;
+    while lobeEndPosition < numel(allSubpeaks)
+        if localIsDeepValley(eventSignal, allSubpeaks(lobeEndPosition), ...
+                allSubpeaks(lobeEndPosition + 1), compoundValleyFraction)
+            break;
+        end
+        lobeEndPosition = lobeEndPosition + 1;
+    end
+
+    sameBoutSubpeaks = allSubpeaks(lobeStartPosition:lobeEndPosition);
+    relativeTimesSec = (sameBoutSubpeaks - anchorPeakIndex) ./ samplingFrequency;
+
+    nSameBoutSubpeaks(eventIndex) = numel(sameBoutSubpeaks);
+    sameBoutSubpeakIndicesText(eventIndex) = strjoin(string(sameBoutSubpeaks(:).'), ';');
+    sameBoutSubpeakTimesRelativeSecText(eventIndex) = strjoin(string(round(relativeTimesSec(:).', 4)), ';');
+    activeSubpeakSpanSec(eventIndex) = max(relativeTimesSec, [], 'omitnan') - min(relativeTimesSec, [], 'omitnan');
+end
+
+eventTable.nSameBoutSubpeaks = nSameBoutSubpeaks;
+eventTable.sameBoutSubpeakIndicesText = sameBoutSubpeakIndicesText;
+eventTable.sameBoutSubpeakTimesRelativeSecText = sameBoutSubpeakTimesRelativeSecText;
+eventTable.activeSubpeakSpanSec = activeSubpeakSpanSec;
+eventTable.compoundValleyFraction = repmat(compoundValleyFraction, nEvents, 1);
+eventTable.compoundSubpeakMinDistanceSec = repmat(subpeakMinDistanceSeconds, nEvents, 1);
+eventTable.isCompoundEvent = nSameBoutSubpeaks >= 2;
+eventTable.isIsolatedEvent = nSameBoutSubpeaks == 1;
+end
+
+function isDeep = localIsDeepValley(eventSignal, leftPeak, rightPeak, valleyFraction)
+indices = leftPeak:rightPeak;
+valleyValue = min(eventSignal(indices), [], 'omitnan');
+thresholdValue = valleyFraction .* min(eventSignal(leftPeak), eventSignal(rightPeak));
+isDeep = valleyValue < thresholdValue;
 end
 
 function figureHandle = localPlotSummaryFigure(waveforms, eventTable, peakValues, peakWidthsSec, timeSec, figureTitle)

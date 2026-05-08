@@ -1,5 +1,37 @@
 # Primitive Event Analysis Handoff (2026-05-06)
 
+Update on 2026-05-08:
+
+This document records the earlier workflow, but the current compound-event
+definition has changed. Use the updated Simo and portable-agent briefs as the
+authoritative current handoff:
+
+- `docs/SIMO_PRIMITIVE_EVENT_REPLICATION_BRIEF_2026-05-06.md`
+- `docs/PORTABLE_PRIMITIVE_EVENT_AGENT_BRIEF_2026-05-07.md`
+- `docs/PRIMITIVE_EVENT_ARTIFACT_MANIFEST_2026-05-08.md`
+
+The important change is that `isCompoundEvent` now refers to the revised
+valley-delimited bout definition in `extractEnvelopeEvents.m`, not merely to
+the old broad proximity rule. The old proximity behavior is preserved as
+`hasNearbyPeak` / `isNearbyPeakEvent`.
+
+Current same-bout definition:
+
+```text
+subpeaks are in the same compound bout unless the valley between adjacent
+subpeaks drops below 0.50 * min(leftPeak, rightPeak)
+```
+
+Current trace-figure threshold definition:
+
+```text
+eventSignal = max(motionEnvelope - localBaseline, 0)
+primary event threshold = 4 * median(noiseSigma)
+envelope-domain display threshold = localBaseline + 4 * median(noiseSigma)
+```
+
+The older sections below are retained as historical context.
+
 This note documents the current MATLAB workflow for extracting and summarizing
 putative primitive envelope events from the Waseda chest accelerometer
 magnitude files.

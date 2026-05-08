@@ -8,7 +8,8 @@ function [figureHandle, plotOutput] = plotEnvelopeEventsWithNoiseBand(magnitudeF
 %   - the original motion envelope,
 %   - a shaded local background/noise region,
 %   - the envelope-domain event threshold,
-%   - unitary event peaks and compound-event subpeaks.
+%   - unitary event peaks and compound-event subpeaks,
+%   - an optional wavelet time-frequency panel under the trace.
 %
 % Input
 %   magnitudeFilePath
@@ -27,10 +28,27 @@ function [figureHandle, plotOutput] = plotEnvelopeEventsWithNoiseBand(magnitudeF
 %   'CompoundSubpeakMinDistanceSeconds' default 0.35
 %   'CompoundValleyFraction'           default 0.50
 %   'MarkerOffsetFraction'             default 0.035
+%   'ShowWavelet'                      default true
+%   'WaveletSource'                    default "motionEnvelope"
+%       One of "eventSignal", "motionEnvelope", or "residual".
+%   'WaveletFrequencyLimitsHz'         default [0.1 10]
+%   'UseWaveletFrequencyLimits'        default false
+%       If false, use cwt(signal, fs) like analyzeFrequencyStructure.m and
+%       only crop the displayed y-axis. This is the closest match to the
+%       earlier frequency diagnostic figures.
+%   'WaveletName'                      default "default"
+%       "default" uses MATLAB's default cwt wavelet. Other values are passed
+%       to cwt, for example "amor".
+%   'WaveletVoicesPerOctave'           default 12
+%   'WaveletMaxSamples'                default Inf
+%   'CenterWaveletSignal'              default true
+%   'NormalizeWaveletSignal'           default false
+%   'WaveletColorPercentile'           default 100
+%   'ShowWaveletEventLines'            default false
 %   'OutputPngPath'                    default ""
 %   'OutputFigPath'                    default ""
 %   'FigureTitle'                      default ""
-%   'FigurePosition'                   default [100 100 1200 600]
+%   'FigurePosition'                   default [100 100 1200 780]
 %
 % Output
 %   figureHandle
@@ -79,6 +97,39 @@ addParameter(inputParserObject, 'CompoundValleyFraction', 0.50, ...
 addParameter(inputParserObject, 'MarkerOffsetFraction', 0.035, ...
     @(value) isnumeric(value) && isscalar(value) && value >= 0);
 
+addParameter(inputParserObject, 'ShowWavelet', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletSource', "motionEnvelope", ...
+    @(value) any(strcmpi(string(value), ["eventSignal", "motionEnvelope", "residual"])));
+
+addParameter(inputParserObject, 'WaveletFrequencyLimitsHz', [0.1 10], ...
+    @(value) isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) > 0 && value(1) < value(2));
+
+addParameter(inputParserObject, 'UseWaveletFrequencyLimits', false, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletName', "default", ...
+    @(value) ischar(value) || isstring(value));
+
+addParameter(inputParserObject, 'WaveletVoicesPerOctave', 12, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'WaveletMaxSamples', Inf, ...
+    @(value) isnumeric(value) && isscalar(value) && (isinf(value) || value >= 1000));
+
+addParameter(inputParserObject, 'CenterWaveletSignal', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'NormalizeWaveletSignal', false, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletColorPercentile', 100, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0 && value <= 100);
+
+addParameter(inputParserObject, 'ShowWaveletEventLines', false, ...
+    @(value) islogical(value) || isnumeric(value));
+
 addParameter(inputParserObject, 'OutputPngPath', "", ...
     @(value) ischar(value) || isstring(value));
 
@@ -88,7 +139,7 @@ addParameter(inputParserObject, 'OutputFigPath', "", ...
 addParameter(inputParserObject, 'FigureTitle', "", ...
     @(value) ischar(value) || isstring(value));
 
-addParameter(inputParserObject, 'FigurePosition', [100 100 1200 600], ...
+addParameter(inputParserObject, 'FigurePosition', [100 100 1200 780], ...
     @(value) isnumeric(value) && isvector(value) && numel(value) == 4);
 
 parse(inputParserObject, magnitudeFilePath, varargin{:});
@@ -143,13 +194,24 @@ end
 windowTimeSec = timeSec(windowMask) - windowStartSec;
 windowEnvelope = motionEnvelope(windowMask);
 windowThreshold = envelopeThreshold(windowMask);
+windowEventSignal = eventOutput.noiseEstimate.eventSignal(windowMask);
+windowResidual = eventOutput.noiseEstimate.residual(windowMask);
 
 figureHandle = figure('Color', 'w', 'Visible', 'on', ...
     'WindowStyle', 'normal', ...
     'WindowState', 'normal', ...
     'Units', 'pixels', ...
     'Position', options.FigurePosition);
-axesHandle = axes(figureHandle);
+
+if logical(options.ShowWavelet)
+    tiledLayoutHandle = tiledlayout(figureHandle, 2, 1, ...
+        'TileSpacing', 'compact', ...
+        'Padding', 'compact');
+    axesHandle = nexttile(tiledLayoutHandle, 1);
+else
+    tiledLayoutHandle = [];
+    axesHandle = axes(figureHandle);
+end
 hold(axesHandle, 'on');
 
 yLimitTop = localChooseYLimitTop(windowEnvelope, windowThreshold);
@@ -193,6 +255,22 @@ end
 
 legend(axesHandle, 'Location', 'northoutside', 'Orientation', 'horizontal', 'Box', 'off');
 
+waveletOutput = struct();
+if logical(options.ShowWavelet)
+    waveletAxes = nexttile(tiledLayoutHandle, 2);
+    waveletSignal = localSelectWaveletSignal(options.WaveletSource, ...
+        windowEventSignal, windowEnvelope, windowResidual);
+    waveletOutput = localPlotWaveletPanel(waveletAxes, windowTimeSec, waveletSignal, ...
+        samplingFrequency, options.WaveletFrequencyLimitsHz, ...
+        logical(options.UseWaveletFrequencyLimits), options.WaveletName, ...
+        options.WaveletVoicesPerOctave, options.WaveletMaxSamples, ...
+        logical(options.CenterWaveletSignal), logical(options.NormalizeWaveletSignal), ...
+        options.WaveletColorPercentile, logical(options.ShowWaveletEventLines), ...
+        unitaryPeakRows, compoundSubpeakRows, windowStartSec, options.WaveletSource);
+    linkaxes([axesHandle waveletAxes], 'x');
+    xlim(waveletAxes, [min(windowTimeSec) max(windowTimeSec)]);
+end
+
 figureHandle.Visible = 'on';
 figureHandle.WindowStyle = 'normal';
 figureHandle.WindowState = 'normal';
@@ -213,11 +291,155 @@ plotOutput.eventOutput = eventOutput;
 plotOutput.envelopeThreshold = envelopeThreshold;
 plotOutput.localEnvelopeThreshold = localEnvelopeThreshold;
 plotOutput.detectorNoiseSigma = detectorNoiseSigma;
+plotOutput.wavelet = waveletOutput;
 plotOutput.windowMask = windowMask;
 plotOutput.windowSeconds = [windowStartSec windowEndSec];
 plotOutput.unitaryPeakRows = unitaryPeakRows;
 plotOutput.compoundSubpeakRows = compoundSubpeakRows;
 plotOutput.figureHandle = figureHandle;
+end
+
+function waveletSignal = localSelectWaveletSignal(waveletSource, windowEventSignal, windowEnvelope, windowResidual)
+switch lower(char(string(waveletSource)))
+    case 'eventsignal'
+        waveletSignal = windowEventSignal;
+    case 'motionenvelope'
+        waveletSignal = windowEnvelope;
+    case 'residual'
+        waveletSignal = windowResidual;
+    otherwise
+        error('plotEnvelopeEventsWithNoiseBand:UnknownWaveletSource', ...
+            'Unknown WaveletSource: %s', char(string(waveletSource)));
+end
+waveletSignal = waveletSignal(:);
+end
+
+function waveletOutput = localPlotWaveletPanel(axesHandle, windowTimeSec, waveletSignal, ...
+    samplingFrequency, frequencyLimitsHz, useWaveletFrequencyLimits, waveletName, ...
+    voicesPerOctave, maxWaveletSamples, ...
+    centerWaveletSignal, normalizeWaveletSignal, colorPercentile, showWaveletEventLines, ...
+    unitaryPeakRows, compoundSubpeakRows, windowStartSec, waveletSource)
+
+[analysisTimeSec, analysisSignal, analysisSamplingFrequency, downsampleFactor] = ...
+    localPrepareWaveletSignal(windowTimeSec, waveletSignal, samplingFrequency, maxWaveletSamples);
+
+displayFrequencyLimitsHz = localClampFrequencyLimits(frequencyLimitsHz, analysisSamplingFrequency);
+if centerWaveletSignal
+    analysisSignal = analysisSignal - median(analysisSignal, 'omitnan');
+end
+if normalizeWaveletSignal
+    scaleValue = max(abs(analysisSignal), [], 'omitnan');
+    if isfinite(scaleValue) && scaleValue > 0
+        analysisSignal = analysisSignal ./ scaleValue;
+    end
+end
+
+[coefficients, frequencyHz] = localComputeWavelet(analysisSignal, analysisSamplingFrequency, ...
+    displayFrequencyLimitsHz, useWaveletFrequencyLimits, waveletName, voicesPerOctave);
+waveletMagnitude = abs(coefficients);
+colorScale = prctile(waveletMagnitude(:), colorPercentile);
+if ~isfinite(colorScale) || colorScale <= 0
+    colorScale = max(waveletMagnitude(:), [], 'omitnan');
+end
+
+imagesc(axesHandle, analysisTimeSec, frequencyHz, waveletMagnitude);
+axis(axesHandle, 'xy');
+ylim(axesHandle, displayFrequencyLimitsHz);
+colormap(axesHandle, turbo);
+colorbar(axesHandle);
+if isfinite(colorScale) && colorScale > 0
+    clim(axesHandle, [0 colorScale]);
+end
+hold(axesHandle, 'on');
+if showWaveletEventLines
+    localOverlayWaveletEventLines(axesHandle, unitaryPeakRows, windowStartSec, ...
+        [0.05 0.35 0.70], '-');
+    localOverlayWaveletEventLines(axesHandle, compoundSubpeakRows, windowStartSec, ...
+        [0.80 0.30 0.10], '-');
+end
+grid(axesHandle, 'on');
+xlabel(axesHandle, 'time within segment (s)');
+ylabel(axesHandle, 'frequency (Hz)');
+title(axesHandle, sprintf('CWT magnitude of %s, %.1f-%.1f Hz', ...
+    char(string(waveletSource)), displayFrequencyLimitsHz(1), displayFrequencyLimitsHz(2)), ...
+    'Interpreter', 'none', 'FontWeight', 'normal');
+
+waveletOutput = struct();
+waveletOutput.timeSec = analysisTimeSec;
+waveletOutput.frequencyHz = frequencyHz;
+waveletOutput.magnitude = waveletMagnitude;
+waveletOutput.downsampleFactor = downsampleFactor;
+waveletOutput.samplingFrequency = analysisSamplingFrequency;
+waveletOutput.frequencyLimitsHz = displayFrequencyLimitsHz;
+waveletOutput.useWaveletFrequencyLimits = useWaveletFrequencyLimits;
+waveletOutput.waveletName = string(waveletName);
+waveletOutput.colorPercentile = colorPercentile;
+waveletOutput.colorScale = colorScale;
+waveletOutput.centerWaveletSignal = centerWaveletSignal;
+waveletOutput.normalizeWaveletSignal = normalizeWaveletSignal;
+waveletOutput.showWaveletEventLines = showWaveletEventLines;
+end
+
+function [coefficients, frequencyHz] = localComputeWavelet(analysisSignal, samplingFrequency, ...
+    frequencyLimitsHz, useWaveletFrequencyLimits, waveletName, voicesPerOctave)
+waveletName = string(waveletName);
+
+if strcmpi(waveletName, "default") && ~useWaveletFrequencyLimits
+    [coefficients, frequencyHz] = cwt(analysisSignal, samplingFrequency);
+elseif strcmpi(waveletName, "default")
+    [coefficients, frequencyHz] = cwt(analysisSignal, samplingFrequency, ...
+        'FrequencyLimits', frequencyLimitsHz, ...
+        'VoicesPerOctave', voicesPerOctave);
+elseif useWaveletFrequencyLimits
+    [coefficients, frequencyHz] = cwt(analysisSignal, char(waveletName), samplingFrequency, ...
+        'FrequencyLimits', frequencyLimitsHz, ...
+        'VoicesPerOctave', voicesPerOctave);
+else
+    [coefficients, frequencyHz] = cwt(analysisSignal, char(waveletName), samplingFrequency, ...
+        'VoicesPerOctave', voicesPerOctave);
+end
+end
+
+function [analysisTimeSec, analysisSignal, analysisSamplingFrequency, downsampleFactor] = ...
+    localPrepareWaveletSignal(windowTimeSec, waveletSignal, samplingFrequency, maxWaveletSamples)
+
+finiteMask = isfinite(windowTimeSec(:)) & isfinite(waveletSignal(:));
+analysisTimeSec = windowTimeSec(finiteMask);
+analysisSignal = waveletSignal(finiteMask);
+
+if numel(analysisSignal) < 10
+    error('plotEnvelopeEventsWithNoiseBand:TooFewWaveletSamples', ...
+        'Need at least 10 finite samples for the wavelet panel.');
+end
+
+downsampleFactor = max(1, ceil(numel(analysisSignal) ./ maxWaveletSamples));
+if downsampleFactor > 1
+    analysisTimeSec = analysisTimeSec(1:downsampleFactor:end);
+    analysisSignal = analysisSignal(1:downsampleFactor:end);
+end
+
+analysisSamplingFrequency = samplingFrequency ./ downsampleFactor;
+end
+
+function frequencyLimitsHz = localClampFrequencyLimits(frequencyLimitsHz, samplingFrequency)
+nyquistFrequency = samplingFrequency ./ 2;
+frequencyLimitsHz = double(frequencyLimitsHz(:).');
+frequencyLimitsHz(2) = min(frequencyLimitsHz(2), nyquistFrequency .* 0.95);
+if frequencyLimitsHz(1) >= frequencyLimitsHz(2)
+    frequencyLimitsHz(1) = max(0.01, frequencyLimitsHz(2) ./ 10);
+end
+end
+
+function localOverlayWaveletEventLines(axesHandle, peakRows, windowStartSec, colorValue, lineStyle)
+if isempty(peakRows)
+    return;
+end
+for peakIndex = 1:height(peakRows)
+    xline(axesHandle, peakRows.timeSec(peakIndex) - windowStartSec, lineStyle, ...
+        'Color', colorValue, ...
+        'LineWidth', 0.8, ...
+        'HandleVisibility', 'off');
+end
 end
 
 function localPlotNoiseBand(axesHandle, windowTimeSec, windowThreshold, yLimitTop)

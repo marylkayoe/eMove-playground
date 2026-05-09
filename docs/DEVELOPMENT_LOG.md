@@ -115,6 +115,35 @@ This document tracks project state, implementation decisions, and validation run
     outside-core signal area, and derivative landmarks outside the candidate
     core
 
+## 2026-05-09
+
+### Envelope And Wavelet Diagnostics Extended For Event Review
+
+- Updated [plotEnvelopeEventsWithNoiseBand.m](CODE/ACCELEROMETER/plotEnvelopeEventsWithNoiseBand.m)
+  to expand the motion-envelope diagnostic figure while keeping the base
+  detector behavior unchanged.
+- Slow envelope panel:
+  - adds a rolling-median slow envelope (`SlowEnvelopeWindowSeconds`)
+  - adds a MAD band around the slow envelope (`ShowSlowEnvelopeBand`,
+    `SlowEnvelopeBandScale`)
+  - adds optional change points (`ShowSlowEnvelopeChangePoints`,
+    `SlowEnvelopeChangePointMinSeconds`, `SlowEnvelopeChangePointMaxCount`)
+- Optional second time window support:
+  - `WindowSeconds2` lets a second [start end] range be included alongside
+    the primary window
+- Wavelet additions:
+  - CWT band-power extraction for `WaveletBandPowerHz` (default 7-9 Hz)
+  - band-power has its own panel when `ShowWaveletBandPower` is enabled
+  - band-power trend uses a rolling median
+    (`ShowWaveletBandPowerTrend`, `WaveletBandPowerTrendWindowSeconds`)
+  - minima markers on the trend line
+    (`ShowWaveletBandPowerMinima`, `WaveletBandPowerMinSeparationSeconds`,
+    `WaveletBandPowerMinProminence`)
+- Layout updates:
+  - panel count logic now accounts for the slow-envelope and band-power panels
+  - band-power panel plots only the slow trend line by default, with minima
+    markers overlaid
+
 ## 2026-05-06
 
 ### Waseda Accelerometer CSV Import And MAT Conversion Added

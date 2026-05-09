@@ -7,6 +7,7 @@ function [eventTimes, eventValues, peakWidths] = detectEnvelopeEvents(eventSigna
     %       the noise estimate for each sample in the envelope signal, also the eventSignal (signal above the baseline)
 % optional inputs
 % thresholdSigma - scalar, number of noise standard deviations above the baseline to consider as an event (default: 3)
+% trialID - string to be used in plotting title (default: '')
 
 % parse inputs
 P = inputParser;
@@ -15,11 +16,14 @@ addParameter(P, 'ThresholdSigma', 3, ...
     @(value) isnumeric(value) && isscalar(value) && value > 0);
     addParameter(P, 'SamplingFrequency', 31.25, ...
     @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+    addParameter(P, 'TrialID', '', ...
+    @(value) ischar(value) || isstring(value));
  parse(P, varargin{:}); 
 
 thresholdSigma = P.Results.ThresholdSigma;
 samplingFrequency = P.Results.SamplingFrequency;
-
+trialID = P.Results.TrialID;
 typicalNoiseSigma = median(noiseSignal, 'omitnan');
 
 minimumPeakHeight = thresholdSigma .* typicalNoiseSigma;
@@ -41,12 +45,16 @@ peakProminences = peakProminences(keepPeak);
 
 eventTimes = peakLocations; % convert from sample indices to time if needed
 eventValues = peakValues;
+% create a time axis in seconds for plotting
+xAx = (0:length(eventSignal)-1) / samplingFrequency;
+
 figure; 
-plot(eventSignal, 'b'); hold on;
-plot(eventTimes, eventValues, 'ro'); % plot detected events as red circles
-xlabel('Sample Index');
+plot(xAx, eventSignal, 'b'); hold on;
+% plot event locations as red filed circles, no edge color, with the same size as the default markersize
+plot(eventTimes / samplingFrequency, eventValues,  'ro', 'MarkerFaceColor', 'r', 'MarkerEdgeColor', 'none', 'MarkerSize', 10);
+xlabel('Time(s )');
 ylabel('Envelope Signal');
-title('Detected Envelope Events');
+title(trialID);
 legend('Envelope Signal', 'Detected Events');
 grid on;
 end

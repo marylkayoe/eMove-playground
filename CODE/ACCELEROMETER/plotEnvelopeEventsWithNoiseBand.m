@@ -20,6 +20,9 @@ function [figureHandle, plotOutput] = plotEnvelopeEventsWithNoiseBand(magnitudeF
 %   'WindowSeconds'                    default []
 %       Two-element [start end] window in the file's original time seconds.
 %       If empty, the full file is plotted.
+%   'WindowSeconds2'                   default []
+%       Optional second [start end] window to include. If empty, only the
+%       primary window is used.
 %   'BaselineWindowSeconds'            default 15
 %   'NoiseWindowSeconds'               default 30
 %   'ThresholdSigma'                   default 4
@@ -28,9 +31,23 @@ function [figureHandle, plotOutput] = plotEnvelopeEventsWithNoiseBand(magnitudeF
 %   'CompoundSubpeakMinDistanceSeconds' default 0.35
 %   'CompoundValleyFraction'           default 0.50
 %   'MarkerOffsetFraction'             default 0.035
+%   'ShowSlowEnvelope'                 default true
+%   'SlowEnvelopeWindowSeconds'        default 10
+%   'ShowSlowEnvelopeBand'             default true
+%   'SlowEnvelopeBandScale'            default 1
+%   'ShowSlowEnvelopeChangePoints'     default true
+%   'SlowEnvelopeChangePointMaxCount'  default 5
+%   'SlowEnvelopeChangePointMinSeconds' default 20
 %   'ShowWavelet'                      default true
 %   'WaveletSource'                    default "motionEnvelope"
 %       One of "eventSignal", "motionEnvelope", or "residual".
+%   'ShowWaveletBandPower'             default true
+%   'WaveletBandPowerHz'               default [7 9]
+%   'ShowWaveletBandPowerTrend'        default true
+%   'WaveletBandPowerTrendWindowSeconds' default 30
+%   'ShowWaveletBandPowerMinima'       default true
+%   'WaveletBandPowerMinSeparationSeconds' default 30
+%   'WaveletBandPowerMinProminence'    default 0
 %   'WaveletFrequencyLimitsHz'         default [0.1 10]
 %   'UseWaveletFrequencyLimits'        default false
 %       If false, use cwt(signal, fs) like analyzeFrequencyStructure.m and
@@ -73,6 +90,9 @@ addRequired(inputParserObject, 'magnitudeFilePath', ...
 addParameter(inputParserObject, 'WindowSeconds', [], ...
     @(value) isempty(value) || (isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) < value(2)));
 
+addParameter(inputParserObject, 'WindowSeconds2', [], ...
+    @(value) isempty(value) || (isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) < value(2)));
+
 addParameter(inputParserObject, 'BaselineWindowSeconds', 15, ...
     @(value) isnumeric(value) && isscalar(value) && value > 0);
 
@@ -97,11 +117,53 @@ addParameter(inputParserObject, 'CompoundValleyFraction', 0.50, ...
 addParameter(inputParserObject, 'MarkerOffsetFraction', 0.035, ...
     @(value) isnumeric(value) && isscalar(value) && value >= 0);
 
+addParameter(inputParserObject, 'ShowSlowEnvelope', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'SlowEnvelopeWindowSeconds', 10, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'ShowSlowEnvelopeBand', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'SlowEnvelopeBandScale', 1, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'ShowSlowEnvelopeChangePoints', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'SlowEnvelopeChangePointMaxCount', 5, ...
+    @(value) isnumeric(value) && isscalar(value) && value >= 0);
+
+addParameter(inputParserObject, 'SlowEnvelopeChangePointMinSeconds', 60, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
 addParameter(inputParserObject, 'ShowWavelet', true, ...
     @(value) islogical(value) || isnumeric(value));
 
 addParameter(inputParserObject, 'WaveletSource', "motionEnvelope", ...
     @(value) any(strcmpi(string(value), ["eventSignal", "motionEnvelope", "residual"])));
+
+addParameter(inputParserObject, 'ShowWaveletBandPower', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletBandPowerHz', [7 9], ...
+    @(value) isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) > 0 && value(1) < value(2));
+
+addParameter(inputParserObject, 'ShowWaveletBandPowerTrend', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletBandPowerTrendWindowSeconds', 10, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'ShowWaveletBandPowerMinima', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'WaveletBandPowerMinSeparationSeconds', 60, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'WaveletBandPowerMinProminence', 0, ...
+    @(value) isnumeric(value) && isscalar(value) && value >= 0);
 
 addParameter(inputParserObject, 'WaveletFrequencyLimitsHz', [0.1 10], ...
     @(value) isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) > 0 && value(1) < value(2));
@@ -176,26 +238,17 @@ envelopeThreshold = eventOutput.noiseEstimate.baseline + ...
 localEnvelopeThreshold = eventOutput.noiseEstimate.baseline + ...
     options.ThresholdSigma .* eventOutput.noiseEstimate.noiseSigma;
 
-if isempty(options.WindowSeconds)
-    windowStartSec = min(timeSec);
-    windowEndSec = max(timeSec);
-else
-    windowStartSec = options.WindowSeconds(1);
-    windowEndSec = options.WindowSeconds(2);
-end
-
-windowMask = timeSec >= windowStartSec & timeSec <= windowEndSec;
+[windowRanges, windowStartSec, windowEndSec] = localBuildWindowRanges(timeSec, options.WindowSeconds, options.WindowSeconds2);
+windowMask = localIsInWindows(timeSec, windowRanges);
 if ~any(windowMask)
     error('plotEnvelopeEventsWithNoiseBand:EmptyWindow', ...
-        'Requested window %.3f-%.3f s does not overlap the file.', ...
-        windowStartSec, windowEndSec);
+        'Requested windows do not overlap the file.');
 end
 
-windowTimeSec = timeSec(windowMask) - windowStartSec;
-windowEnvelope = motionEnvelope(windowMask);
-windowThreshold = envelopeThreshold(windowMask);
-windowEventSignal = eventOutput.noiseEstimate.eventSignal(windowMask);
-windowResidual = eventOutput.noiseEstimate.residual(windowMask);
+[windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual, ...
+    slowEnvelope, slowEnvelopeMad, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
+    envelopeThreshold, eventOutput.noiseEstimate.eventSignal, eventOutput.noiseEstimate.residual, ...
+    windowRanges, windowStartSec, samplingFrequency, options);
 
 figureHandle = figure('Color', 'w', 'Visible', 'on', ...
     'WindowStyle', 'normal', ...
@@ -203,14 +256,35 @@ figureHandle = figure('Color', 'w', 'Visible', 'on', ...
     'Units', 'pixels', ...
     'Position', options.FigurePosition);
 
-if logical(options.ShowWavelet)
-    tiledLayoutHandle = tiledlayout(figureHandle, 2, 1, ...
+showWavelet = logical(options.ShowWavelet);
+showBandPower = logical(options.ShowWaveletBandPower);
+showStacked = showWavelet || showBandPower;
+
+if showStacked
+    panelCount = 1 + (2 * showWavelet) + showBandPower;
+    tiledLayoutHandle = tiledlayout(figureHandle, panelCount, 1, ...
         'TileSpacing', 'compact', ...
         'Padding', 'compact');
     axesHandle = nexttile(tiledLayoutHandle, 1);
+    slowAxesHandle = [];
+    bandPowerAxesHandle = [];
+    waveletAxesHandle = [];
+    if showWavelet && showBandPower
+        slowAxesHandle = nexttile(tiledLayoutHandle, 2);
+        bandPowerAxesHandle = nexttile(tiledLayoutHandle, 3);
+        waveletAxesHandle = nexttile(tiledLayoutHandle, 4);
+    elseif showWavelet
+        slowAxesHandle = nexttile(tiledLayoutHandle, 2);
+        waveletAxesHandle = nexttile(tiledLayoutHandle, 3);
+    else
+        bandPowerAxesHandle = nexttile(tiledLayoutHandle, 2);
+    end
 else
     tiledLayoutHandle = [];
     axesHandle = axes(figureHandle);
+    slowAxesHandle = [];
+    bandPowerAxesHandle = [];
+    waveletAxesHandle = [];
 end
 hold(axesHandle, 'on');
 
@@ -232,6 +306,10 @@ unitaryPeakRows = unitaryPeakRows(unitaryPeakRows.timeSec >= windowStartSec & ..
     unitaryPeakRows.timeSec <= windowEndSec, :);
 compoundSubpeakRows = compoundSubpeakRows(compoundSubpeakRows.timeSec >= windowStartSec & ...
     compoundSubpeakRows.timeSec <= windowEndSec, :);
+if size(windowRanges, 1) > 1
+    unitaryPeakRows = unitaryPeakRows(localIsInWindows(unitaryPeakRows.timeSec, windowRanges), :);
+    compoundSubpeakRows = compoundSubpeakRows(localIsInWindows(compoundSubpeakRows.timeSec, windowRanges), :);
+end
 
 markerOffset = options.MarkerOffsetFraction .* yLimitTop;
 localPlotPeakDots(axesHandle, unitaryPeakRows, windowStartSec, markerOffset, yLimitTop, ...
@@ -242,7 +320,11 @@ localPlotPeakDots(axesHandle, compoundSubpeakRows, windowStartSec, markerOffset,
 ylim(axesHandle, [0 yLimitTop]);
 xlim(axesHandle, [min(windowTimeSec) max(windowTimeSec)]);
 grid(axesHandle, 'on');
-xlabel(axesHandle, sprintf('time within %.0f-%.0f s segment (s)', windowStartSec, windowEndSec));
+if size(windowRanges, 1) == 1
+    xlabel(axesHandle, sprintf('time within %.0f-%.0f s segment (s)', windowStartSec, windowEndSec));
+else
+    xlabel(axesHandle, 'time within selected segments (s)');
+end
 ylabel(axesHandle, 'motion envelope');
 
 if strlength(string(options.FigureTitle)) > 0
@@ -255,9 +337,39 @@ end
 
 legend(axesHandle, 'Location', 'northoutside', 'Orientation', 'horizontal', 'Box', 'off');
 
+if isempty(slowAxesHandle)
+    if logical(options.ShowSlowEnvelope)
+        if logical(options.ShowSlowEnvelopeBand)
+            localPlotSlowEnvelopeBand(axesHandle, windowTimeSec, slowEnvelope, slowEnvelopeMad, options);
+        end
+        plot(axesHandle, windowTimeSec, slowEnvelope, ...
+            'Color', [0.35 0.45 0.90], ...
+            'LineWidth', 2.2, ...
+            'DisplayName', sprintf('slow envelope (%.0f s median)', options.SlowEnvelopeWindowSeconds));
+        legend(axesHandle, 'Location', 'northoutside', 'Orientation', 'horizontal', 'Box', 'off');
+    end
+else
+    hold(slowAxesHandle, 'on');
+    if logical(options.ShowSlowEnvelope)
+        if logical(options.ShowSlowEnvelopeBand)
+            localPlotSlowEnvelopeBand(slowAxesHandle, windowTimeSec, slowEnvelope, slowEnvelopeMad, options);
+        end
+        plot(slowAxesHandle, windowTimeSec, slowEnvelope, ...
+            'Color', [0.35 0.45 0.90], ...
+            'LineWidth', 2.2, ...
+            'DisplayName', sprintf('slow envelope (%.0f s median)', options.SlowEnvelopeWindowSeconds));
+    end
+    if ~isempty(changePointTimes)
+        localPlotChangePointMarkers(slowAxesHandle, changePointTimes);
+    end
+    xlim(slowAxesHandle, [min(windowTimeSec) max(windowTimeSec)]);
+    grid(slowAxesHandle, 'on');
+    ylabel(slowAxesHandle, 'slow envelope');
+end
+
 waveletOutput = struct();
-if logical(options.ShowWavelet)
-    waveletAxes = nexttile(tiledLayoutHandle, 2);
+if showWavelet
+    waveletAxes = waveletAxesHandle;
     waveletSignal = localSelectWaveletSignal(options.WaveletSource, ...
         windowEventSignal, windowEnvelope, windowResidual);
     waveletOutput = localPlotWaveletPanel(waveletAxes, windowTimeSec, waveletSignal, ...
@@ -266,9 +378,22 @@ if logical(options.ShowWavelet)
         options.WaveletVoicesPerOctave, options.WaveletMaxSamples, ...
         logical(options.CenterWaveletSignal), logical(options.NormalizeWaveletSignal), ...
         options.WaveletColorPercentile, logical(options.ShowWaveletEventLines), ...
-        unitaryPeakRows, compoundSubpeakRows, windowStartSec, options.WaveletSource);
-    linkaxes([axesHandle waveletAxes], 'x');
+        unitaryPeakRows, compoundSubpeakRows, windowStartSec, options.WaveletSource, ...
+        options.WaveletBandPowerHz);
+    linkAxesList = [axesHandle waveletAxes];
+    if ~isempty(slowAxesHandle)
+        linkAxesList = [linkAxesList slowAxesHandle];
+    end
+    if showBandPower && ~isempty(bandPowerAxesHandle)
+        linkAxesList = [linkAxesList bandPowerAxesHandle];
+    end
+    linkaxes(linkAxesList, 'x');
     xlim(waveletAxes, [min(windowTimeSec) max(windowTimeSec)]);
+end
+
+if showBandPower && ~isempty(bandPowerAxesHandle)
+    localPlotWaveletBandPower(bandPowerAxesHandle, waveletOutput, options);
+    grid(bandPowerAxesHandle, 'on');
 end
 
 figureHandle.Visible = 'on';
@@ -293,10 +418,190 @@ plotOutput.localEnvelopeThreshold = localEnvelopeThreshold;
 plotOutput.detectorNoiseSigma = detectorNoiseSigma;
 plotOutput.wavelet = waveletOutput;
 plotOutput.windowMask = windowMask;
-plotOutput.windowSeconds = [windowStartSec windowEndSec];
+plotOutput.windowSeconds = windowRanges;
 plotOutput.unitaryPeakRows = unitaryPeakRows;
 plotOutput.compoundSubpeakRows = compoundSubpeakRows;
+plotOutput.slowEnvelope = slowEnvelope;
+plotOutput.slowEnvelopeMad = slowEnvelopeMad;
+plotOutput.slowEnvelopeChangePointTimes = changePointTimes;
+plotOutput.waveletBandPower = localExtractWaveletBandPowerSummary(waveletOutput);
 plotOutput.figureHandle = figureHandle;
+end
+
+function [slowEnvelope, slowEnvelopeMad] = localComputeSlowEnvelopeStats(windowEnvelope, samplingFrequency, options)
+if ~logical(options.ShowSlowEnvelope)
+    slowEnvelope = nan(size(windowEnvelope));
+    slowEnvelopeMad = nan(size(windowEnvelope));
+    return;
+end
+
+windowSamples = max(3, round(options.SlowEnvelopeWindowSeconds .* samplingFrequency));
+if mod(windowSamples, 2) == 0
+    windowSamples = windowSamples + 1;
+end
+windowSamples = min(windowSamples, max(3, numel(windowEnvelope)));
+slowEnvelope = movmedian(windowEnvelope, windowSamples, 'omitnan');
+slowEnvelopeMad = movmad(windowEnvelope, windowSamples, 1, 'omitnan') .* options.SlowEnvelopeBandScale;
+slowEnvelope = slowEnvelope(:);
+slowEnvelopeMad = slowEnvelopeMad(:);
+end
+
+function localPlotSlowEnvelopeBand(axesHandle, windowTimeSec, slowEnvelope, slowEnvelopeMad, options)
+if ~logical(options.ShowSlowEnvelopeBand)
+    return;
+end
+
+upperBand = slowEnvelope + slowEnvelopeMad;
+lowerBand = max(0, slowEnvelope - slowEnvelopeMad);
+bandColor = [0.35 0.45 0.90];
+patch(axesHandle, [windowTimeSec(:); flipud(windowTimeSec(:))], ...
+    [lowerBand(:); flipud(upperBand(:))], ...
+    bandColor, ...
+    'FaceAlpha', 0.18, ...
+    'EdgeColor', 'none', ...
+    'HandleVisibility', 'off');
+end
+
+function [windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual, ...
+    slowEnvelope, slowEnvelopeMad, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
+    envelopeThreshold, eventSignal, residualSignal, windowRanges, windowStartSec, samplingFrequency, options)
+
+segmentCount = size(windowRanges, 1);
+timeCells = cell(segmentCount, 1);
+envelopeCells = cell(segmentCount, 1);
+thresholdCells = cell(segmentCount, 1);
+eventSignalCells = cell(segmentCount, 1);
+residualCells = cell(segmentCount, 1);
+slowEnvelopeCells = cell(segmentCount, 1);
+slowMadCells = cell(segmentCount, 1);
+changePointTimes = [];
+
+for segmentIndex = 1:segmentCount
+    segmentStart = windowRanges(segmentIndex, 1);
+    segmentEnd = windowRanges(segmentIndex, 2);
+    segmentMask = timeSec >= segmentStart & timeSec <= segmentEnd;
+    if ~any(segmentMask)
+        error('plotEnvelopeEventsWithNoiseBand:EmptyWindow', ...
+            'Requested window %.3f-%.3f s does not overlap the file.', ...
+            segmentStart, segmentEnd);
+    end
+    timeCells{segmentIndex} = timeSec(segmentMask) - windowStartSec;
+    envelopeCells{segmentIndex} = motionEnvelope(segmentMask);
+    thresholdCells{segmentIndex} = envelopeThreshold(segmentMask);
+    eventSignalCells{segmentIndex} = eventSignal(segmentMask);
+    residualCells{segmentIndex} = residualSignal(segmentMask);
+    [slowEnvelopeCells{segmentIndex}, slowMadCells{segmentIndex}] = ...
+        localComputeSlowEnvelopeStats(envelopeCells{segmentIndex}, samplingFrequency, options);
+    changePointTimes = [changePointTimes; ...
+        localFindSlowEnvelopeChangePoints(timeCells{segmentIndex}, slowMadCells{segmentIndex}, ...
+        samplingFrequency, options)]; %#ok<AGROW>
+end
+
+[windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual] = ...
+    localConcatenateSegments(timeCells, envelopeCells, thresholdCells, eventSignalCells, residualCells);
+[~, slowEnvelope, slowEnvelopeMad] = ...
+    localConcatenateSegments(timeCells, slowEnvelopeCells, slowMadCells);
+changePointTimes = sort(changePointTimes(:));
+end
+
+function [windowRanges, windowStartSec, windowEndSec] = localBuildWindowRanges(timeSec, windowSeconds, windowSeconds2)
+timeMin = min(timeSec);
+timeMax = max(timeSec);
+
+if isempty(windowSeconds)
+    windowSeconds = [timeMin timeMax];
+    windowSeconds2 = [];
+end
+
+windowRanges = double(windowSeconds(:).');
+if ~isempty(windowSeconds2)
+    windowRanges = [windowRanges; double(windowSeconds2(:).')];
+end
+
+windowRanges = sortrows(windowRanges, 1);
+windowStartSec = min(windowRanges(:, 1));
+windowEndSec = max(windowRanges(:, 2));
+end
+
+function windowMask = localIsInWindows(timeValues, windowRanges)
+windowMask = false(size(timeValues));
+for index = 1:size(windowRanges, 1)
+    windowMask = windowMask | (timeValues >= windowRanges(index, 1) & timeValues <= windowRanges(index, 2));
+end
+end
+
+function [combinedTime, varargout] = localConcatenateSegments(timeCells, varargin)
+segmentCount = numel(timeCells);
+combinedTime = [];
+varargout = cell(1, numel(varargin));
+for index = 1:numel(varargin)
+    varargout{index} = [];
+end
+
+for segmentIndex = 1:segmentCount
+    segmentTime = timeCells{segmentIndex}(:);
+    combinedTime = [combinedTime; segmentTime]; %#ok<AGROW>
+    for index = 1:numel(varargin)
+        segmentData = varargin{index}{segmentIndex}(:);
+        varargout{index} = [varargout{index}; segmentData]; %#ok<AGROW>
+    end
+    if segmentIndex < segmentCount
+        combinedTime = [combinedTime; NaN]; %#ok<AGROW>
+        for index = 1:numel(varargin)
+            varargout{index} = [varargout{index}; NaN]; %#ok<AGROW>
+        end
+    end
+end
+end
+
+function changePointTimes = localFindSlowEnvelopeChangePoints(windowTimeSec, slowEnvelopeMad, samplingFrequency, options)
+changePointTimes = [];
+if ~logical(options.ShowSlowEnvelopeChangePoints)
+    return;
+end
+
+if options.SlowEnvelopeChangePointMaxCount <= 0
+    return;
+end
+
+validMask = isfinite(windowTimeSec(:)) & isfinite(slowEnvelopeMad(:));
+if nnz(validMask) < 10
+    return;
+end
+
+analysisTime = windowTimeSec(validMask);
+analysisSignal = slowEnvelopeMad(validMask);
+minDistanceSamples = max(1, round(options.SlowEnvelopeChangePointMinSeconds .* samplingFrequency));
+
+try
+    changePointIndex = findchangepts(analysisSignal, ...
+        'Statistic', 'mean', ...
+        'MaxNumChanges', options.SlowEnvelopeChangePointMaxCount, ...
+        'MinDistance', minDistanceSamples);
+catch
+    return;
+end
+
+if isempty(changePointIndex)
+    return;
+end
+
+changePointIndex = changePointIndex(changePointIndex >= 1 & changePointIndex <= numel(analysisTime));
+changePointTimes = analysisTime(changePointIndex);
+changePointTimes = sort(changePointTimes(:));
+end
+
+function localPlotChangePointMarkers(axesHandle, changePointTimes)
+if isempty(changePointTimes)
+    return;
+end
+
+for index = 1:numel(changePointTimes)
+    xline(axesHandle, changePointTimes(index), '--', ...
+        'Color', [0.82 0.25 0.25], ...
+        'LineWidth', 2.0, ...
+        'HandleVisibility', 'off');
+end
 end
 
 function waveletSignal = localSelectWaveletSignal(waveletSource, windowEventSignal, windowEnvelope, windowResidual)
@@ -318,7 +623,7 @@ function waveletOutput = localPlotWaveletPanel(axesHandle, windowTimeSec, wavele
     samplingFrequency, frequencyLimitsHz, useWaveletFrequencyLimits, waveletName, ...
     voicesPerOctave, maxWaveletSamples, ...
     centerWaveletSignal, normalizeWaveletSignal, colorPercentile, showWaveletEventLines, ...
-    unitaryPeakRows, compoundSubpeakRows, windowStartSec, waveletSource)
+    unitaryPeakRows, compoundSubpeakRows, windowStartSec, waveletSource, bandPowerHz)
 
 [analysisTimeSec, analysisSignal, analysisSamplingFrequency, downsampleFactor] = ...
     localPrepareWaveletSignal(windowTimeSec, waveletSignal, samplingFrequency, maxWaveletSamples);
@@ -378,6 +683,103 @@ waveletOutput.colorScale = colorScale;
 waveletOutput.centerWaveletSignal = centerWaveletSignal;
 waveletOutput.normalizeWaveletSignal = normalizeWaveletSignal;
 waveletOutput.showWaveletEventLines = showWaveletEventLines;
+waveletOutput.bandPower = localComputeWaveletBandPower(analysisTimeSec, frequencyHz, waveletMagnitude, ...
+    bandPowerHz);
+end
+
+function bandPowerOutput = localComputeWaveletBandPower(analysisTimeSec, frequencyHz, waveletMagnitude, bandLimitsHz)
+bandPowerOutput = struct('timeSec', [], 'bandHz', [], 'power', []);
+if isempty(analysisTimeSec) || isempty(frequencyHz) || isempty(waveletMagnitude)
+    return;
+end
+
+bandMask = frequencyHz >= bandLimitsHz(1) & frequencyHz <= bandLimitsHz(2);
+if ~any(bandMask)
+    return;
+end
+
+bandPower = mean(waveletMagnitude(bandMask, :), 1, 'omitnan');
+bandPowerOutput.timeSec = analysisTimeSec(:);
+bandPowerOutput.bandHz = bandLimitsHz(:).';
+bandPowerOutput.power = bandPower(:);
+end
+
+function localPlotWaveletBandPower(axesHandle, waveletOutput, options)
+bandPowerOutput = localExtractWaveletBandPowerSummary(waveletOutput);
+if isempty(bandPowerOutput.timeSec)
+    return;
+end
+
+hold(axesHandle, 'on');
+timeSec = bandPowerOutput.timeSec(:);
+power = bandPowerOutput.power(:);
+
+if logical(options.ShowWaveletBandPowerTrend)
+    trend = localComputeBandPowerTrend(timeSec, power, options);
+    if ~isempty(trend)
+        plot(axesHandle, timeSec, trend, ...
+            'Color', [0.15 0.35 0.10], ...
+            'LineWidth', 1.15, ...
+            'DisplayName', sprintf('CWT %.1f-%.1f Hz trend', options.WaveletBandPowerHz));
+        if logical(options.ShowWaveletBandPowerMinima)
+            minimaMask = localFindBandPowerMinima(timeSec, trend, options);
+            if any(minimaMask)
+                plot(axesHandle, timeSec(minimaMask), trend(minimaMask), 'v', ...
+                    'Color', [0.15 0.10 0.10], ...
+                    'MarkerFaceColor', [0.10 0.10 0.10], ...
+                    'MarkerSize', 5, ...
+                    'HandleVisibility', 'off');
+            end
+        end
+    end
+end
+
+ylabel(axesHandle, sprintf('CWT %.1f-%.1f Hz power', options.WaveletBandPowerHz));
+end
+
+function trend = localComputeBandPowerTrend(timeSec, power, options)
+trend = [];
+if numel(timeSec) < 5
+    return;
+end
+
+timeStep = median(diff(timeSec), 'omitnan');
+if ~isfinite(timeStep) || timeStep <= 0
+    return;
+end
+
+windowSamples = max(3, round(options.WaveletBandPowerTrendWindowSeconds ./ timeStep));
+if mod(windowSamples, 2) == 0
+    windowSamples = windowSamples + 1;
+end
+windowSamples = min(windowSamples, max(3, numel(power)));
+trend = movmedian(power, windowSamples, 'omitnan');
+trend = trend(:);
+end
+
+function minimaMask = localFindBandPowerMinima(timeSec, trend, options)
+minimaMask = false(size(trend));
+if numel(trend) < 5
+    return;
+end
+
+timeStep = median(diff(timeSec), 'omitnan');
+if ~isfinite(timeStep) || timeStep <= 0
+    return;
+end
+
+minSeparationSamples = max(1, round(options.WaveletBandPowerMinSeparationSeconds ./ timeStep));
+minimaMask = islocalmin(trend, ...
+    'MinSeparation', minSeparationSamples, ...
+    'MinProminence', options.WaveletBandPowerMinProminence);
+end
+
+function bandPowerOutput = localExtractWaveletBandPowerSummary(waveletOutput)
+if isstruct(waveletOutput) && isfield(waveletOutput, 'bandPower')
+    bandPowerOutput = waveletOutput.bandPower;
+else
+    bandPowerOutput = struct('timeSec', [], 'bandHz', [], 'power', []);
+end
 end
 
 function [coefficients, frequencyHz] = localComputeWavelet(analysisSignal, samplingFrequency, ...

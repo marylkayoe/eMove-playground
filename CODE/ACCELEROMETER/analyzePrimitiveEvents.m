@@ -21,7 +21,15 @@ function analysisOutput = analyzePrimitiveEvents(magnitudeFolder, varargin)
 %   'RectifyResidual'           default true
 %   'MaxStartLookbackSeconds'   default 2.0
 %   'MaxEndLookaheadSeconds'    default 2.0
-%   'UseIsolatedEventsOnly'     default true
+%   'UseIsolatedEventsOnly'     default false
+%   'EventClassFilter'          default "all"
+%       One of "all", "unitary", or "compound". This uses the current
+%       valley-delimited bout definition from extractEnvelopeEvents.
+%   'OnsetAlignedWindowSeconds' default [-0.25 4.25]
+%       Window used for event-class waveform comparisons. t = 0 is the
+%       low-threshold onset before the first same-bout subpeak.
+%   'OnsetLookbackSeconds'      default 1.25
+%   'OnsetThresholdSigma'       default 2
 %   'MakeFigures'               default true
 %   'OutputFolder'              default ""
 %   'FigureStem'                default "primitive_event_summary"
@@ -34,7 +42,13 @@ function analysisOutput = analyzePrimitiveEvents(magnitudeFolder, varargin)
 %   analysisOutput.fileSummaryTable
 %   analysisOutput.conditionSummaryTable
 %   analysisOutput.subjectSummaryTable
-%   analysisOutput.meanWaveformTable
+%   analysisOutput.eventClassSummaryTable
+%   analysisOutput.conditionEventClassSummaryTable
+%   analysisOutput.subjectEventClassSummaryTable
+%   analysisOutput.boutTable
+%   analysisOutput.boutConditionEventClassSummaryTable
+%   analysisOutput.eventClassMeanWaveformTable
+%       Onset-aligned bout waveforms for unitary/compound comparisons.
 %   analysisOutput.figureHandles
 %   analysisOutput.sourceFolder
 
@@ -65,8 +79,20 @@ addParameter(inputParserObject, 'MaxStartLookbackSeconds', 2.0, ...
 addParameter(inputParserObject, 'MaxEndLookaheadSeconds', 2.0, ...
     @(value) isnumeric(value) && isscalar(value) && value > 0);
 
-addParameter(inputParserObject, 'UseIsolatedEventsOnly', true, ...
+addParameter(inputParserObject, 'UseIsolatedEventsOnly', false, ...
     @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'EventClassFilter', "all", ...
+    @(value) any(strcmpi(string(value), ["all", "unitary", "compound"])));
+
+addParameter(inputParserObject, 'OnsetAlignedWindowSeconds', [-0.25 4.25], ...
+    @(value) isnumeric(value) && isvector(value) && numel(value) == 2 && value(1) < value(2));
+
+addParameter(inputParserObject, 'OnsetLookbackSeconds', 1.25, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'OnsetThresholdSigma', 2, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
 
 addParameter(inputParserObject, 'MakeFigures', true, ...
     @(value) islogical(value) || isnumeric(value));
@@ -82,6 +108,10 @@ parse(inputParserObject, magnitudeFolder, varargin{:});
 options = inputParserObject.Results;
 magnitudeFolder = char(string(options.magnitudeFolder));
 useIsolatedEventsOnly = logical(options.UseIsolatedEventsOnly);
+eventClassFilter = lower(string(options.EventClassFilter));
+if useIsolatedEventsOnly
+    eventClassFilter = "unitary";
+end
 
 if ~isfolder(magnitudeFolder)
     error('analyzePrimitiveEvents:MissingMagnitudeFolder', ...
@@ -112,7 +142,7 @@ perFile = repmat(struct( ...
     'eventOutput', []), numel(fileListing), 1);
 
 eventTables = cell(numel(fileListing), 1);
-meanWaveformRows = struct([]);
+eventClassMeanWaveformRows = struct([]);
 
 for fileIndex = 1:numel(fileListing)
     fileName = fileListing(fileIndex).name;
@@ -149,14 +179,16 @@ for fileIndex = 1:numel(fileListing)
         currentTable.condition = repmat(string(fileInfo.condition), height(currentTable), 1);
         currentTable.detectorAmplitude = eventOutput.peakValues(:);
         currentTable.detectorWidthSec = eventOutput.peakWidthsSec(:);
+        currentTable = localAddEventClassColumns(currentTable);
         currentTable.interEventIntervalSec = NaN(height(currentTable), 1);
         if height(currentTable) >= 2 && ismember('peakTimeSec', currentTable.Properties.VariableNames)
             currentTable.interEventIntervalSec(2:end) = diff(currentTable.peakTimeSec);
         end
 
-        if useIsolatedEventsOnly && ismember('isIsolatedEvent', currentTable.Properties.VariableNames)
-            currentTable = currentTable(currentTable.isIsolatedEvent, :);
-        end
+        unfilteredTableForClassRows = currentTable;
+        currentTable = localFilterByEventClass(currentTable, eventClassFilter);
+    else
+        unfilteredTableForClassRows = currentTable;
     end
 
     eventTables{fileIndex} = currentTable;
@@ -168,11 +200,15 @@ for fileIndex = 1:numel(fileListing)
     perFile(fileIndex).motionData = motionData;
     perFile(fileIndex).eventOutput = eventOutput;
 
-    currentWaveformRow = localBuildMeanWaveformRow(fileName, fileInfo, eventOutput.waveforms, currentTable);
-    if isempty(meanWaveformRows)
-        meanWaveformRows = currentWaveformRow;
-    else
-        meanWaveformRows(end + 1, 1) = currentWaveformRow; %#ok<AGROW>
+    currentClassRows = localBuildEventClassOnsetAlignedWaveformRows(fileName, fileInfo, ...
+        eventOutput, unfilteredTableForClassRows, ...
+        options.OnsetAlignedWindowSeconds, ...
+        options.OnsetLookbackSeconds, ...
+        options.OnsetThresholdSigma);
+    if isempty(eventClassMeanWaveformRows)
+        eventClassMeanWaveformRows = currentClassRows;
+    elseif ~isempty(currentClassRows)
+        eventClassMeanWaveformRows = [eventClassMeanWaveformRows; currentClassRows]; %#ok<AGROW>
     end
 end
 
@@ -180,31 +216,65 @@ allEventTable = vertcat(eventTables{:});
 fileSummaryTable = localBuildFileSummaryTable(perFile, allEventTable);
 conditionSummaryTable = localBuildGroupedSummary(allEventTable, "condition");
 subjectSummaryTable = localBuildGroupedSummary(allEventTable, "subjectID");
-meanWaveformTable = struct2table(meanWaveformRows);
+eventClassSummaryTable = localBuildGroupedSummary(allEventTable, "eventClass");
+conditionEventClassSummaryTable = localBuildGroupedSummary(allEventTable, ["condition", "eventClass"]);
+subjectEventClassSummaryTable = localBuildGroupedSummary(allEventTable, ["subjectID", "eventClass"]);
+boutTable = localBuildBoutTable(allEventTable);
+boutConditionEventClassSummaryTable = localBuildGroupedSummary(boutTable, ["condition", "eventClass"]);
+eventClassMeanWaveformTable = struct2table(eventClassMeanWaveformRows);
 
 %% Build summary figures
 
 figureHandles = struct();
 figureHandles.conditionCdf = [];
 figureHandles.subjectCdf = [];
-figureHandles.fileWaveforms = [];
-figureHandles.groupedWaveforms = [];
+figureHandles.conditionEventClassCdf = [];
+figureHandles.subjectEventClassCdf = [];
+figureHandles.eventClassGroupedWaveforms = [];
 figureHandles.amplitudeWidthScatter = [];
 
 if logical(options.MakeFigures)
     figureHandles.conditionCdf = localMakeConditionCdfFigure(allEventTable);
-    figureHandles.subjectCdf = localMakeSubjectCdfFigure(allEventTable);
-    figureHandles.fileWaveforms = localMakeFileMeanWaveformFigure(meanWaveformRows);
-    figureHandles.groupedWaveforms = localMakeGroupedMeanWaveformFigure(meanWaveformRows);
-    figureHandles.amplitudeWidthScatter = localMakeAmplitudeWidthScatterFigure(allEventTable);
-
     if strlength(string(outputFolder)) > 0
         localSaveFigurePair(figureHandles.conditionCdf, outputFolder, char(string(options.FigureStem) + "_cdfs_by_condition"));
+    end
+
+    figureHandles.subjectCdf = localMakeSubjectCdfFigure(allEventTable);
+    if strlength(string(outputFolder)) > 0
         localSaveFigurePair(figureHandles.subjectCdf, outputFolder, char(string(options.FigureStem) + "_cdfs_by_subject"));
-        localSaveFigurePair(figureHandles.fileWaveforms, outputFolder, char(string(options.FigureStem) + "_file_mean_waveforms"));
-        localSaveFigurePair(figureHandles.groupedWaveforms, outputFolder, char(string(options.FigureStem) + "_grouped_mean_waveforms"));
+    end
+
+    figureHandles.conditionEventClassCdf = localMakeConditionEventClassCdfFigure(allEventTable);
+    if strlength(string(outputFolder)) > 0
+        localSaveFigurePair(figureHandles.conditionEventClassCdf, outputFolder, char(string(options.FigureStem) + "_cdfs_by_condition_and_event_class"));
+    end
+
+    figureHandles.subjectEventClassCdf = localMakeSubjectEventClassCdfFigure(allEventTable);
+    if strlength(string(outputFolder)) > 0
+        localSaveFigurePair(figureHandles.subjectEventClassCdf, outputFolder, char(string(options.FigureStem) + "_cdfs_by_subject_and_event_class"));
+    end
+
+    figureHandles.eventClassGroupedWaveforms = localMakeEventClassGroupedWaveformFigure(eventClassMeanWaveformRows);
+    if strlength(string(outputFolder)) > 0
+        localSaveFigurePair(figureHandles.eventClassGroupedWaveforms, outputFolder, char(string(options.FigureStem) + "_event_class_grouped_mean_waveforms"));
+    end
+
+    figureHandles.amplitudeWidthScatter = localMakeAmplitudeWidthScatterFigure(allEventTable);
+    if strlength(string(outputFolder)) > 0
         localSaveFigurePair(figureHandles.amplitudeWidthScatter, outputFolder, char(string(options.FigureStem) + "_amplitude_width_scatter"));
     end
+end
+
+if strlength(string(outputFolder)) > 0
+    writetable(allEventTable, fullfile(outputFolder, char(string(options.FigureStem) + "_all_event_metrics.csv")));
+    writetable(fileSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_file_summary.csv")));
+    writetable(conditionSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_condition_summary.csv")));
+    writetable(subjectSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_subject_summary.csv")));
+    writetable(eventClassSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_event_class_summary.csv")));
+    writetable(conditionEventClassSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_condition_event_class_summary.csv")));
+    writetable(subjectEventClassSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_subject_event_class_summary.csv")));
+    writetable(boutTable, fullfile(outputFolder, char(string(options.FigureStem) + "_bout_table.csv")));
+    writetable(boutConditionEventClassSummaryTable, fullfile(outputFolder, char(string(options.FigureStem) + "_bout_condition_event_class_summary.csv")));
 end
 
 %% Package output
@@ -215,10 +285,16 @@ analysisOutput.allEventTable = allEventTable;
 analysisOutput.fileSummaryTable = fileSummaryTable;
 analysisOutput.conditionSummaryTable = conditionSummaryTable;
 analysisOutput.subjectSummaryTable = subjectSummaryTable;
-analysisOutput.meanWaveformTable = meanWaveformTable;
+analysisOutput.eventClassSummaryTable = eventClassSummaryTable;
+analysisOutput.conditionEventClassSummaryTable = conditionEventClassSummaryTable;
+analysisOutput.subjectEventClassSummaryTable = subjectEventClassSummaryTable;
+analysisOutput.boutTable = boutTable;
+analysisOutput.boutConditionEventClassSummaryTable = boutConditionEventClassSummaryTable;
+analysisOutput.eventClassMeanWaveformTable = eventClassMeanWaveformTable;
 analysisOutput.figureHandles = figureHandles;
 analysisOutput.sourceFolder = string(magnitudeFolder);
 analysisOutput.outputFolder = string(outputFolder);
+analysisOutput.eventClassFilter = eventClassFilter;
 
 end
 
@@ -234,48 +310,182 @@ fileInfo.subjectID = tokens{1};
 fileInfo.condition = tokens{2};
 end
 
-function waveformRow = localBuildMeanWaveformRow(fileName, fileInfo, waveforms, filteredEventTable)
-waveformMatrix = waveforms.waveformMatrix;
-if isfield(waveforms, 'relativeSampleIndex') && ~isempty(waveforms.relativeSampleIndex)
-    relativeSampleIndex = waveforms.relativeSampleIndex;
-else
-    relativeSampleIndex = ((1:size(waveformMatrix, 1)) - waveforms.alignedPeakRow).';
+function eventTable = localAddEventClassColumns(eventTable)
+eventClass = strings(height(eventTable), 1);
+eventClass(:) = "unknown";
+
+if ismember('isIsolatedEvent', eventTable.Properties.VariableNames)
+    eventClass(logical(eventTable.isIsolatedEvent)) = "unitary";
+end
+if ismember('isCompoundEvent', eventTable.Properties.VariableNames)
+    eventClass(logical(eventTable.isCompoundEvent)) = "compound";
 end
 
-if isempty(filteredEventTable)
-    selectedWaveformMatrix = NaN(size(waveformMatrix, 1), 0);
-    waveformColumnIndex = [];
-else
-    selectedIndices = filteredEventTable.peakIndex;
-    [isMatched, waveformColumnIndex] = ismember(selectedIndices, waveforms.peakLocations);
-    waveformColumnIndex = waveformColumnIndex(isMatched & waveformColumnIndex > 0);
-    if isempty(waveformColumnIndex)
-        selectedWaveformMatrix = NaN(size(waveformMatrix, 1), 0);
+eventTable.eventClass = eventClass;
+eventTable.isUnitaryBout = eventClass == "unitary";
+eventTable.isCompoundBout = eventClass == "compound";
+end
+
+function filteredTable = localFilterByEventClass(eventTable, eventClassFilter)
+switch lower(string(eventClassFilter))
+    case "all"
+        filteredTable = eventTable;
+    case "unitary"
+        filteredTable = eventTable(eventTable.eventClass == "unitary", :);
+    case "compound"
+        filteredTable = eventTable(eventTable.eventClass == "compound", :);
+    otherwise
+        error('analyzePrimitiveEvents:UnknownEventClassFilter', ...
+            'Unknown EventClassFilter: %s', eventClassFilter);
+end
+end
+
+function waveformRows = localBuildEventClassOnsetAlignedWaveformRows(fileName, fileInfo, ...
+    eventOutput, eventTable, onsetAlignedWindowSeconds, onsetLookbackSeconds, onsetThresholdSigma)
+eventClasses = ["unitary"; "compound"];
+waveformRows = repmat(struct(), 0, 1);
+samplingFrequency = eventOutput.samplingFrequency;
+eventSignal = eventOutput.noiseEstimate.eventSignal(:);
+noiseSigma = eventOutput.noiseEstimate.noiseSigma(:);
+onsetThreshold = onsetThresholdSigma .* median(noiseSigma, 'omitnan');
+relativeSampleIndex = round(onsetAlignedWindowSeconds(1) .* samplingFrequency): ...
+    round(onsetAlignedWindowSeconds(2) .* samplingFrequency);
+relativeSampleIndex = relativeSampleIndex(:);
+relativeTimeSec = relativeSampleIndex ./ samplingFrequency;
+
+for eventClassIndex = 1:numel(eventClasses)
+    currentClass = eventClasses(eventClassIndex);
+    if isempty(eventTable) || ~ismember('eventClass', eventTable.Properties.VariableNames)
+        classTable = eventTable;
     else
-        selectedWaveformMatrix = waveformMatrix(:, waveformColumnIndex);
+        classTable = eventTable(eventTable.eventClass == currentClass, :);
+    end
+
+    [snippetMatrix, onsetTable] = localExtractOnsetAlignedBoutSnippets( ...
+        eventSignal, classTable, samplingFrequency, relativeSampleIndex, ...
+        onsetLookbackSeconds, onsetThreshold);
+
+    meanWaveform = mean(snippetMatrix, 2, 'omitnan');
+    semWaveform = localComputeSem(snippetMatrix);
+
+    currentRow = struct();
+    currentRow.fileName = string(fileName);
+    currentRow.subjectID = string(fileInfo.subjectID);
+    currentRow.condition = string(fileInfo.condition);
+    currentRow.relativeSampleIndex = relativeSampleIndex;
+    currentRow.relativeTimeSec = relativeTimeSec;
+    currentRow.eventWaveformMatrix = snippetMatrix;
+    currentRow.meanWaveform = meanWaveform;
+    currentRow.semWaveform = semWaveform;
+    currentRow.nEvents = size(snippetMatrix, 2);
+    currentRow.eventClass = currentClass;
+    currentRow.alignment = "onset";
+    currentRow.onsetDefinition = "last eventSignal sample at or below 2*median(noiseSigma) before first same-bout subpeak";
+    currentRow.onsetBoutTable = onsetTable;
+
+    if isempty(waveformRows)
+        waveformRows = currentRow;
+    else
+        waveformRows(end + 1, 1) = currentRow; %#ok<AGROW>
+    end
+end
+end
+
+function [snippetMatrix, onsetTable] = localExtractOnsetAlignedBoutSnippets( ...
+    eventSignal, eventTable, samplingFrequency, relativeSampleIndex, ...
+    onsetLookbackSeconds, onsetThreshold)
+if isempty(eventTable)
+    snippetMatrix = NaN(numel(relativeSampleIndex), 0);
+    onsetTable = table();
+    return;
+end
+
+boutKeys = strings(height(eventTable), 1);
+for rowIndex = 1:height(eventTable)
+    if ismember('sameBoutSubpeakIndicesText', eventTable.Properties.VariableNames) && ...
+            strlength(string(eventTable.sameBoutSubpeakIndicesText(rowIndex))) > 0
+        boutKeys(rowIndex) = string(eventTable.sameBoutSubpeakIndicesText(rowIndex));
+    else
+        boutKeys(rowIndex) = string(eventTable.peakIndex(rowIndex));
     end
 end
 
-selectedWaveformMatrix = localShiftEventColumnsToFirstFiniteZero(selectedWaveformMatrix);
-meanWaveform = mean(selectedWaveformMatrix, 2, 'omitnan');
-semWaveform = localComputeSem(selectedWaveformMatrix);
+[uniqueBoutKeys, ~, groupIndexByRow] = unique(boutKeys, 'stable');
+snippetMatrix = NaN(numel(relativeSampleIndex), numel(uniqueBoutKeys));
+onsetRows = struct([]);
 
-if isfield(waveforms, 'relativeTimeSec') && ~isempty(waveforms.relativeTimeSec)
-    relativeTimeSec = waveforms.relativeTimeSec;
-else
-    relativeTimeSec = ((1:size(waveformMatrix, 1)) - 1).';
+nextColumn = 1;
+for boutIndex = 1:numel(uniqueBoutKeys)
+    rows = eventTable(groupIndexByRow == boutIndex, :);
+    subpeakIndices = localParseIndexList(uniqueBoutKeys(boutIndex));
+    if isempty(subpeakIndices)
+        subpeakIndices = rows.peakIndex(1);
+    end
+    subpeakIndices = sort(subpeakIndices(:));
+    firstSubpeakIndex = subpeakIndices(1);
+    onsetIndex = localEstimateBoutOnsetIndex(eventSignal, firstSubpeakIndex, ...
+        samplingFrequency, onsetLookbackSeconds, onsetThreshold);
+    snippet = localExtractFixedSnippet(eventSignal, onsetIndex, relativeSampleIndex);
+    if any(~isfinite(snippet))
+        continue;
+    end
+
+    [~, representativeRowIndex] = max(rows.detectorAmplitude);
+    representativeRow = rows(representativeRowIndex, :);
+
+    snippetMatrix(:, nextColumn) = snippet(:);
+    onsetRows(end + 1, 1).fileName = representativeRow.fileName; %#ok<AGROW>
+    onsetRows(end, 1).subjectID = representativeRow.subjectID;
+    onsetRows(end, 1).condition = representativeRow.condition;
+    onsetRows(end, 1).eventClass = representativeRow.eventClass;
+    onsetRows(end, 1).boutKey = uniqueBoutKeys(boutIndex);
+    onsetRows(end, 1).onsetIndex = onsetIndex;
+    onsetRows(end, 1).firstSubpeakIndex = firstSubpeakIndex;
+    onsetRows(end, 1).representativePeakIndex = representativeRow.peakIndex;
+    onsetRows(end, 1).nSameBoutSubpeaks = numel(subpeakIndices);
+    onsetRows(end, 1).activeSubpeakSpanSec = representativeRow.activeSubpeakSpanSec;
+    onsetRows(end, 1).firstSubpeakLatencySec = (firstSubpeakIndex - onsetIndex) ./ samplingFrequency;
+    onsetRows(end, 1).representativePeakLatencySec = ...
+        (representativeRow.peakIndex - onsetIndex) ./ samplingFrequency;
+    onsetRows(end, 1).snippetIndex = nextColumn;
+    nextColumn = nextColumn + 1;
 end
 
-waveformRow = struct();
-waveformRow.fileName = string(fileName);
-waveformRow.subjectID = string(fileInfo.subjectID);
-waveformRow.condition = string(fileInfo.condition);
-waveformRow.relativeSampleIndex = relativeSampleIndex;
-waveformRow.relativeTimeSec = relativeTimeSec;
-waveformRow.eventWaveformMatrix = selectedWaveformMatrix;
-waveformRow.meanWaveform = meanWaveform;
-waveformRow.semWaveform = semWaveform;
-waveformRow.nEvents = size(selectedWaveformMatrix, 2);
+snippetMatrix = snippetMatrix(:, 1:(nextColumn - 1));
+if isempty(onsetRows)
+    onsetTable = table();
+else
+    onsetTable = struct2table(onsetRows);
+end
+end
+
+function onsetIndex = localEstimateBoutOnsetIndex(eventSignal, firstSubpeakIndex, ...
+    samplingFrequency, onsetLookbackSeconds, onsetThreshold)
+lookbackSamples = max(1, round(onsetLookbackSeconds .* samplingFrequency));
+searchStart = max(1, firstSubpeakIndex - lookbackSamples);
+searchValues = eventSignal(searchStart:firstSubpeakIndex);
+belowThresholdPositions = find(searchValues <= onsetThreshold);
+
+if ~isempty(belowThresholdPositions)
+    onsetIndex = searchStart + belowThresholdPositions(end) - 1;
+else
+    [~, minimumPosition] = min(searchValues);
+    onsetIndex = searchStart + minimumPosition - 1;
+end
+
+while onsetIndex < firstSubpeakIndex && eventSignal(onsetIndex) <= onsetThreshold
+    onsetIndex = onsetIndex + 1;
+end
+onsetIndex = max(1, onsetIndex - 1);
+end
+
+function snippet = localExtractFixedSnippet(signal, centerIndex, relativeSampleIndex)
+sampleIndices = centerIndex + relativeSampleIndex(:);
+if any(sampleIndices < 1) || any(sampleIndices > numel(signal))
+    snippet = NaN(numel(relativeSampleIndex), 1);
+else
+    snippet = signal(sampleIndices);
+end
 end
 
 function summaryTable = localBuildFileSummaryTable(perFile, allEventTable)
@@ -305,28 +515,136 @@ end
 summaryTable = struct2table(summaryRows);
 end
 
-function summaryTable = localBuildGroupedSummary(eventTable, groupVariableName)
-groupValues = unique(string(eventTable.(groupVariableName)), 'stable');
+function summaryTable = localBuildGroupedSummary(eventTable, groupVariableNames)
+groupVariableNames = string(groupVariableNames);
+if isempty(eventTable)
+    summaryTable = table();
+    return;
+end
+
+groupKeyTable = eventTable(:, cellstr(groupVariableNames));
+[groupRows, ~, groupIndexByRow] = unique(groupKeyTable, 'rows', 'stable');
 summaryRows = repmat(struct( ...
     'groupName', "", ...
     'nEvents', NaN, ...
     'medianAmplitude', NaN, ...
     'medianDetectorWidthSec', NaN, ...
-    'medianInterEventIntervalSec', NaN), numel(groupValues), 1);
+    'medianInterEventIntervalSec', NaN, ...
+    'medianSameBoutSubpeaks', NaN, ...
+    'medianActiveSubpeakSpanSec', NaN), height(groupRows), 1);
 
-for groupIndex = 1:numel(groupValues)
-    currentGroup = groupValues(groupIndex);
-    mask = string(eventTable.(groupVariableName)) == currentGroup;
+for groupIndex = 1:height(groupRows)
+    mask = groupIndexByRow == groupIndex;
     currentTable = eventTable(mask, :);
 
-    summaryRows(groupIndex).groupName = currentGroup;
+    groupNameParts = strings(1, numel(groupVariableNames));
+    for nameIndex = 1:numel(groupVariableNames)
+        currentValues = groupRows.(groupVariableNames(nameIndex));
+        groupNameParts(nameIndex) = string(currentValues(groupIndex));
+    end
+    summaryRows(groupIndex).groupName = strjoin(groupNameParts, " | ");
     summaryRows(groupIndex).nEvents = height(currentTable);
-    summaryRows(groupIndex).medianAmplitude = median(currentTable.detectorAmplitude, 'omitnan');
-    summaryRows(groupIndex).medianDetectorWidthSec = median(currentTable.detectorWidthSec, 'omitnan');
-    summaryRows(groupIndex).medianInterEventIntervalSec = median(currentTable.interEventIntervalSec, 'omitnan');
+    summaryRows(groupIndex).medianAmplitude = localMedianIfPresent(currentTable, 'detectorAmplitude');
+    summaryRows(groupIndex).medianDetectorWidthSec = localMedianIfPresent(currentTable, 'detectorWidthSec');
+    summaryRows(groupIndex).medianInterEventIntervalSec = localMedianIfPresent(currentTable, 'interEventIntervalSec');
+    summaryRows(groupIndex).medianSameBoutSubpeaks = localMedianIfPresent(currentTable, 'nSameBoutSubpeaks');
+    summaryRows(groupIndex).medianActiveSubpeakSpanSec = localMedianIfPresent(currentTable, 'activeSubpeakSpanSec');
 end
 
 summaryTable = struct2table(summaryRows);
+for nameIndex = 1:numel(groupVariableNames)
+    summaryTable.(groupVariableNames(nameIndex)) = groupRows.(groupVariableNames(nameIndex));
+end
+summaryTable = movevars(summaryTable, cellstr(groupVariableNames), 'Before', 'groupName');
+end
+
+function value = localMedianIfPresent(inputTable, variableName)
+if isempty(inputTable) || ~ismember(variableName, inputTable.Properties.VariableNames)
+    value = NaN;
+else
+    value = median(inputTable.(variableName), 'omitnan');
+end
+end
+
+function boutTable = localBuildBoutTable(eventTable)
+if isempty(eventTable)
+    boutTable = table();
+    return;
+end
+
+boutRows = struct([]);
+fileNames = unique(string(eventTable.fileName), 'stable');
+
+for fileIndex = 1:numel(fileNames)
+    fileTable = eventTable(string(eventTable.fileName) == fileNames(fileIndex), :);
+    boutKeys = strings(height(fileTable), 1);
+    for rowIndex = 1:height(fileTable)
+        if ismember('sameBoutSubpeakIndicesText', fileTable.Properties.VariableNames) && ...
+                strlength(string(fileTable.sameBoutSubpeakIndicesText(rowIndex))) > 0
+            boutKeys(rowIndex) = string(fileTable.sameBoutSubpeakIndicesText(rowIndex));
+        else
+            boutKeys(rowIndex) = string(fileTable.peakIndex(rowIndex));
+        end
+    end
+
+    [uniqueBoutKeys, ~, groupIndexByRow] = unique(boutKeys, 'stable');
+    for boutIndex = 1:numel(uniqueBoutKeys)
+        rows = fileTable(groupIndexByRow == boutIndex, :);
+        subpeakIndices = localParseIndexList(uniqueBoutKeys(boutIndex));
+        if isempty(subpeakIndices)
+            subpeakIndices = rows.peakIndex(1);
+        end
+
+        [~, representativeRowIndex] = max(rows.detectorAmplitude);
+        representativeRow = rows(representativeRowIndex, :);
+
+        boutRows(end + 1, 1).fileName = representativeRow.fileName; %#ok<AGROW>
+        boutRows(end, 1).filePath = representativeRow.filePath;
+        boutRows(end, 1).subjectID = representativeRow.subjectID;
+        boutRows(end, 1).condition = representativeRow.condition;
+        boutRows(end, 1).eventClass = representativeRow.eventClass;
+        boutRows(end, 1).boutKey = uniqueBoutKeys(boutIndex);
+        boutRows(end, 1).nSameBoutSubpeaks = numel(subpeakIndices);
+        boutRows(end, 1).firstSubpeakIndex = min(subpeakIndices);
+        boutRows(end, 1).lastSubpeakIndex = max(subpeakIndices);
+        boutRows(end, 1).representativePeakIndex = representativeRow.peakIndex;
+        boutRows(end, 1).representativePeakTimeSec = representativeRow.peakTimeSec;
+        boutRows(end, 1).representativeAmplitude = representativeRow.detectorAmplitude;
+        boutRows(end, 1).detectorAmplitude = representativeRow.detectorAmplitude;
+        boutRows(end, 1).detectorWidthSec = representativeRow.detectorWidthSec;
+        boutRows(end, 1).activeSubpeakSpanSec = representativeRow.activeSubpeakSpanSec;
+        boutRows(end, 1).nPrimaryAnchorsInBout = height(rows);
+    end
+end
+
+if isempty(boutRows)
+    boutTable = table();
+    return;
+end
+
+boutTable = struct2table(boutRows);
+boutTable = sortrows(boutTable, {'fileName', 'firstSubpeakIndex'});
+boutTable.interEventIntervalSec = NaN(height(boutTable), 1);
+for fileIndex = 1:numel(fileNames)
+    mask = string(boutTable.fileName) == fileNames(fileIndex);
+    rowIndices = find(mask);
+    if numel(rowIndices) >= 2
+        boutTable.interEventIntervalSec(rowIndices(2:end)) = diff(boutTable.representativePeakTimeSec(rowIndices));
+    end
+end
+end
+
+function indices = localParseIndexList(textValue)
+textValue = string(textValue);
+if strlength(textValue) == 0 || ismissing(textValue)
+    indices = [];
+    return;
+end
+
+parts = split(textValue, ';');
+indices = str2double(parts);
+indices = indices(isfinite(indices));
+indices = indices(:);
 end
 
 function figureHandle = localMakeConditionCdfFigure(eventTable)
@@ -392,106 +710,167 @@ for metricIndex = 1:size(metricDefinitions, 1)
 end
 end
 
-function figureHandle = localMakeFileMeanWaveformFigure(meanWaveformRows)
-figureHandle = figure('Color', 'w', 'Position', [100 80 1450 950]);
+function figureHandle = localMakeConditionEventClassCdfFigure(eventTable)
+eventClasses = ["unitary", "compound"];
+eventClassLabels = ["Unitary bouts", "Compound bouts"];
+conditionOrder = ["desk_work_stand", "watching_videos_stand"];
+conditionLabels = ["desk work", "watching videos"];
+conditionColors = [0.15 0.35 0.70; 0.75 0.20 0.20];
+metricDefinitions = { ...
+    'detectorAmplitude', 'amplitude above baseline'; ...
+    'interEventIntervalSec', 'inter-event interval (s)'; ...
+    'detectorWidthSec', 'detector width (s)'};
+
+figureHandle = figure('Color', 'w', 'Position', [100 80 1500 900]);
+t = tiledlayout(numel(eventClasses), size(metricDefinitions, 1), ...
+    'TileSpacing', 'compact', 'Padding', 'compact');
+title(t, 'Primitive event distributions by condition and event class', ...
+    'FontSize', 16, 'FontWeight', 'bold');
+subtitle(t, 'Event class uses the valley-delimited same-bout definition from extractEnvelopeEvents.', ...
+    'FontSize', 11);
+
+for classIndex = 1:numel(eventClasses)
+    for metricIndex = 1:size(metricDefinitions, 1)
+        ax = nexttile(t);
+        hold(ax, 'on');
+        for conditionIndex = 1:numel(conditionOrder)
+            mask = eventTable.eventClass == eventClasses(classIndex) & ...
+                string(eventTable.condition) == conditionOrder(conditionIndex);
+            values = eventTable.(metricDefinitions{metricIndex, 1})(mask);
+            localPlotCdf(ax, values, conditionColors(conditionIndex, :), ...
+                char(conditionLabels(conditionIndex)));
+        end
+        grid(ax, 'on');
+        xlabel(ax, metricDefinitions{metricIndex, 2});
+        ylabel(ax, 'CDF');
+        title(ax, sprintf('%s: %s', eventClassLabels(classIndex), metricDefinitions{metricIndex, 2}), ...
+            'FontWeight', 'normal');
+        if classIndex == 1 && metricIndex == 1
+            legend(ax, 'Location', 'southeast', 'Box', 'off');
+        end
+    end
+end
+end
+
+function figureHandle = localMakeSubjectEventClassCdfFigure(eventTable)
+eventClasses = ["unitary", "compound"];
+eventClassLabels = ["Unitary bouts", "Compound bouts"];
+subjectOrder = ["sub1", "sub2", "sub3", "sub4"];
+subjectColors = lines(numel(subjectOrder));
+metricDefinitions = { ...
+    'detectorAmplitude', 'amplitude above baseline'; ...
+    'interEventIntervalSec', 'inter-event interval (s)'; ...
+    'detectorWidthSec', 'detector width (s)'};
+
+figureHandle = figure('Color', 'w', 'Position', [100 80 1500 900]);
+t = tiledlayout(numel(eventClasses), size(metricDefinitions, 1), ...
+    'TileSpacing', 'compact', 'Padding', 'compact');
+title(t, 'Primitive event distributions by subject and event class', ...
+    'FontSize', 16, 'FontWeight', 'bold');
+subtitle(t, 'Event class uses the valley-delimited same-bout definition from extractEnvelopeEvents.', ...
+    'FontSize', 11);
+
+for classIndex = 1:numel(eventClasses)
+    for metricIndex = 1:size(metricDefinitions, 1)
+        ax = nexttile(t);
+        hold(ax, 'on');
+        for subjectIndex = 1:numel(subjectOrder)
+            mask = eventTable.eventClass == eventClasses(classIndex) & ...
+                string(eventTable.subjectID) == subjectOrder(subjectIndex);
+            values = eventTable.(metricDefinitions{metricIndex, 1})(mask);
+            localPlotCdf(ax, values, subjectColors(subjectIndex, :), char(subjectOrder(subjectIndex)));
+        end
+        grid(ax, 'on');
+        xlabel(ax, metricDefinitions{metricIndex, 2});
+        ylabel(ax, 'CDF');
+        title(ax, sprintf('%s: %s', eventClassLabels(classIndex), metricDefinitions{metricIndex, 2}), ...
+            'FontWeight', 'normal');
+        if classIndex == 1 && metricIndex == 1
+            legend(ax, 'Location', 'southeast', 'Box', 'off');
+        end
+    end
+end
+end
+
+function figureHandle = localMakeEventClassGroupedWaveformFigure(eventClassMeanWaveformRows)
+figureHandle = figure('Color', 'w', 'Position', [100 80 1500 1700]);
 t = tiledlayout(4, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-title(t, 'Mean event-signal waveforms by file', 'FontSize', 16, 'FontWeight', 'bold');
-subtitle(t, 'Waveforms come from baseline-relative eventSignal and are shifted so the first finite y value is 0. Shading is mean +/- SEM.', 'FontSize', 11);
-
-for fileIndex = 1:numel(meanWaveformRows)
-    ax = nexttile(t);
-    localPlotMeanWithSem(ax, meanWaveformRows(fileIndex).relativeTimeSec, ...
-        meanWaveformRows(fileIndex).meanWaveform, meanWaveformRows(fileIndex).semWaveform, ...
-        [0 0 0], sprintf('%s', char(meanWaveformRows(fileIndex).fileName)));
-    xline(ax, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0, 'HandleVisibility', 'off');
-    grid(ax, 'on');
-    xlabel(ax, 'time relative to peak (s)');
-    ylabel(ax, 'mean event signal');
-    title(ax, sprintf('%s | %s | n=%d', ...
-        char(meanWaveformRows(fileIndex).subjectID), ...
-        strrep(strrep(char(meanWaveformRows(fileIndex).condition), '_stand', ''), '_', ' '), ...
-        meanWaveformRows(fileIndex).nEvents), ...
-        'FontWeight', 'normal');
-end
-end
-
-function figureHandle = localMakeGroupedMeanWaveformFigure(meanWaveformRows)
-figureHandle = figure('Color', 'w', 'Position', [100 80 1300 900]);
-t = tiledlayout(2, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
-title(t, 'Mean event-signal waveforms grouped across subjects and contexts', 'FontSize', 16, 'FontWeight', 'bold');
-subtitle(t, 'Means come from baseline-relative eventSignal. Shading is mean +/- SEM. The last panel shows peak-normalized subject means.', 'FontSize', 11);
+title(t, 'Onset-aligned event-signal waveforms by event class, condition, and subject', ...
+    'FontSize', 16, 'FontWeight', 'bold');
+subtitle(t, 'Rows show raw amplitude means and per-event peak-amplitude-normalized shape means.', ...
+    'FontSize', 11);
 
 conditionOrder = ["desk_work_stand", "watching_videos_stand"];
 subjectOrder = ["sub1", "sub2", "sub3", "sub4"];
 conditionColors = [0.15 0.35 0.70; 0.75 0.20 0.20];
 subjectColors = lines(numel(subjectOrder));
+eventClasses = ["unitary", "compound"];
 
-ax1 = nexttile(t, 1);
-hold(ax1, 'on');
-for conditionIndex = 1:numel(conditionOrder)
-    localPlotGroupedMeanWaveform(ax1, meanWaveformRows, "condition", conditionOrder(conditionIndex), ...
-        conditionColors(conditionIndex, :), ...
-        strrep(strrep(char(conditionOrder(conditionIndex)), '_stand', ''), '_', ' '));
-end
-grid(ax1, 'on');
-xlabel(ax1, 'time relative to peak (s)');
-ylabel(ax1, 'mean event signal');
-title(ax1, 'Grouped by condition', 'FontWeight', 'normal');
-legend(ax1, 'Location', 'northeast', 'Box', 'off');
+for classIndex = 1:numel(eventClasses)
+    classRows = eventClassMeanWaveformRows(arrayfun(@(row) ...
+        string(row.eventClass) == eventClasses(classIndex), eventClassMeanWaveformRows));
+    rawTileIndex = (classIndex - 1) * 4;
 
-ax2 = nexttile(t, 2);
-hold(ax2, 'on');
-for subjectIndex = 1:numel(subjectOrder)
-    localPlotGroupedMeanWaveform(ax2, meanWaveformRows, "subjectID", subjectOrder(subjectIndex), ...
-        subjectColors(subjectIndex, :), char(subjectOrder(subjectIndex)));
-end
-grid(ax2, 'on');
-xlabel(ax2, 'time relative to peak (s)');
-ylabel(ax2, 'mean event signal');
-title(ax2, 'Grouped by subject', 'FontWeight', 'normal');
-legend(ax2, 'Location', 'northeast', 'Box', 'off');
-
-ax3 = nexttile(t, 3);
-hold(ax3, 'on');
-for rowIndex = 1:numel(meanWaveformRows)
-    localPlotMeanWithSem(ax3, meanWaveformRows(rowIndex).relativeTimeSec, ...
-        meanWaveformRows(rowIndex).meanWaveform, meanWaveformRows(rowIndex).semWaveform, ...
-        [0.35 0.35 0.35], sprintf('%s %s', ...
-        char(meanWaveformRows(rowIndex).subjectID), ...
-        strrep(strrep(char(meanWaveformRows(rowIndex).condition), '_stand', ''), '_', ' ')));
-end
-grid(ax3, 'on');
-xlabel(ax3, 'time relative to peak (s)');
-ylabel(ax3, 'mean event signal');
-title(ax3, 'All 8 file means', 'FontWeight', 'normal');
-
-ax4 = nexttile(t, 4);
-hold(ax4, 'on');
-subjectOrder = ["sub1", "sub2", "sub3", "sub4"];
-subjectColors = lines(numel(subjectOrder));
-for subjectIndex = 1:numel(subjectOrder)
-    mask = arrayfun(@(row) string(row.subjectID) == subjectOrder(subjectIndex), meanWaveformRows);
-    selectedRows = meanWaveformRows(mask);
-    if isempty(selectedRows)
-        continue;
+    conditionAxes = nexttile(t, rawTileIndex + 1);
+    hold(conditionAxes, 'on');
+    for conditionIndex = 1:numel(conditionOrder)
+        localPlotGroupedMeanWaveform(conditionAxes, classRows, "condition", conditionOrder(conditionIndex), ...
+            conditionColors(conditionIndex, :), ...
+            strrep(strrep(char(conditionOrder(conditionIndex)), '_stand', ''), '_', ' '), false);
     end
-    [commonTimeSec, stackedWaveforms] = localStackEventWaveformRows(selectedRows);
-    stackedWaveforms = localNormalizeEventColumnsToPeak(stackedWaveforms);
-    subjectMeanWaveform = mean(stackedWaveforms, 2, 'omitnan');
-    subjectSemWaveform = localComputeSem(stackedWaveforms);
-    displayName = sprintf('%s (n=%d)', char(subjectOrder(subjectIndex)), size(stackedWaveforms, 2));
-    localPlotMeanWithSem(ax4, commonTimeSec, subjectMeanWaveform, subjectSemWaveform, ...
-        subjectColors(subjectIndex, :), displayName);
+    grid(conditionAxes, 'on');
+    xlabel(conditionAxes, 'time from estimated bout onset (s)');
+    ylabel(conditionAxes, 'mean event signal');
+    title(conditionAxes, sprintf('%s: raw amplitude by condition', eventClasses(classIndex)), ...
+        'FontWeight', 'normal');
+    legend(conditionAxes, 'Location', 'northeast', 'Box', 'off');
+
+    subjectAxes = nexttile(t, rawTileIndex + 2);
+    hold(subjectAxes, 'on');
+    for subjectIndex = 1:numel(subjectOrder)
+        localPlotGroupedMeanWaveform(subjectAxes, classRows, "subjectID", subjectOrder(subjectIndex), ...
+            subjectColors(subjectIndex, :), char(subjectOrder(subjectIndex)), false);
+    end
+    grid(subjectAxes, 'on');
+    xlabel(subjectAxes, 'time from estimated bout onset (s)');
+    ylabel(subjectAxes, 'mean event signal');
+    title(subjectAxes, sprintf('%s: raw amplitude by subject', eventClasses(classIndex)), ...
+        'FontWeight', 'normal');
+    legend(subjectAxes, 'Location', 'northeast', 'Box', 'off');
+
+    normalizedConditionAxes = nexttile(t, rawTileIndex + 3);
+    hold(normalizedConditionAxes, 'on');
+    for conditionIndex = 1:numel(conditionOrder)
+        localPlotGroupedMeanWaveform(normalizedConditionAxes, classRows, "condition", conditionOrder(conditionIndex), ...
+            conditionColors(conditionIndex, :), ...
+            strrep(strrep(char(conditionOrder(conditionIndex)), '_stand', ''), '_', ' '), true);
+    end
+    grid(normalizedConditionAxes, 'on');
+    xlabel(normalizedConditionAxes, 'time from estimated bout onset (s)');
+    ylabel(normalizedConditionAxes, 'mean event signal / event peak');
+    title(normalizedConditionAxes, sprintf('%s: peak-normalized by condition', eventClasses(classIndex)), ...
+        'FontWeight', 'normal');
+    legend(normalizedConditionAxes, 'Location', 'northeast', 'Box', 'off');
+
+    normalizedSubjectAxes = nexttile(t, rawTileIndex + 4);
+    hold(normalizedSubjectAxes, 'on');
+    for subjectIndex = 1:numel(subjectOrder)
+        localPlotGroupedMeanWaveform(normalizedSubjectAxes, classRows, "subjectID", subjectOrder(subjectIndex), ...
+            subjectColors(subjectIndex, :), char(subjectOrder(subjectIndex)), true);
+    end
+    grid(normalizedSubjectAxes, 'on');
+    xlabel(normalizedSubjectAxes, 'time from estimated bout onset (s)');
+    ylabel(normalizedSubjectAxes, 'mean event signal / event peak');
+    title(normalizedSubjectAxes, sprintf('%s: peak-normalized by subject', eventClasses(classIndex)), ...
+        'FontWeight', 'normal');
+    legend(normalizedSubjectAxes, 'Location', 'northeast', 'Box', 'off');
 end
-xline(ax4, 0, '--', 'Color', [0.75 0.15 0.15], 'LineWidth', 1.0, 'HandleVisibility', 'off');
-grid(ax4, 'on');
-xlabel(ax4, 'time relative to peak (s)');
-ylabel(ax4, 'normalized mean event signal');
-title(ax4, 'Subject means: start = 0, peak = 1', 'FontWeight', 'normal');
-legend(ax4, 'Location', 'eastoutside', 'Box', 'off');
 end
 
-function localPlotGroupedMeanWaveform(ax, meanWaveformRows, groupField, groupValue, plotColor, displayName)
+function localPlotGroupedMeanWaveform(ax, meanWaveformRows, groupField, groupValue, plotColor, displayName, normalizeToPeakAmplitude)
+if nargin < 7
+    normalizeToPeakAmplitude = false;
+end
 mask = arrayfun(@(row) string(row.(groupField)) == groupValue, meanWaveformRows);
 selectedRows = meanWaveformRows(mask);
 if isempty(selectedRows)
@@ -499,6 +878,9 @@ if isempty(selectedRows)
 end
 
 [commonTimeSec, stackedWaveforms] = localStackWaveformRows(selectedRows);
+if normalizeToPeakAmplitude
+    stackedWaveforms = localNormalizeEventColumnsToPeakAmplitude(stackedWaveforms);
+end
 groupMeanWaveform = mean(stackedWaveforms, 2, 'omitnan');
 groupSemWaveform = localComputeSem(stackedWaveforms);
 displayNameWithN = sprintf('%s (n=%d)', displayName, size(stackedWaveforms, 2));
@@ -545,19 +927,6 @@ if any(diff(commonTimeSec) <= 0)
 end
 end
 
-function shiftedMatrix = localShiftEventColumnsToFirstFiniteZero(waveformMatrix)
-shiftedMatrix = waveformMatrix;
-for eventIndex = 1:size(waveformMatrix, 2)
-    waveform = waveformMatrix(:, eventIndex);
-    firstIndex = find(isfinite(waveform), 1, 'first');
-    if isempty(firstIndex)
-        continue;
-    end
-
-    shiftedMatrix(:, eventIndex) = waveform - waveform(firstIndex);
-end
-end
-
 function semWaveform = localComputeSem(waveformMatrix)
 nFinite = sum(isfinite(waveformMatrix), 2);
 standardDeviation = std(waveformMatrix, 0, 2, 'omitnan');
@@ -584,7 +953,7 @@ plot(ax, xValues(finiteMask), meanWaveform(finiteMask), ...
     'LineWidth', 2.1, 'Color', plotColor, 'DisplayName', displayName);
 end
 
-function normalizedMatrix = localNormalizeEventColumnsToPeak(waveformMatrix)
+function normalizedMatrix = localNormalizeEventColumnsToPeakAmplitude(waveformMatrix)
 normalizedMatrix = waveformMatrix;
 for eventIndex = 1:size(waveformMatrix, 2)
     waveform = waveformMatrix(:, eventIndex);
@@ -593,15 +962,9 @@ for eventIndex = 1:size(waveformMatrix, 2)
         continue;
     end
 
-    firstIndex = find(finiteMask, 1, 'first');
-    startValue = waveform(firstIndex);
-    peakValue = max(waveform(finiteMask));
-    peakDelta = peakValue - startValue;
-
-    if ~isfinite(peakDelta) || peakDelta <= 0
-        normalizedMatrix(finiteMask, eventIndex) = waveform(finiteMask) - startValue;
-    else
-        normalizedMatrix(finiteMask, eventIndex) = (waveform(finiteMask) - startValue) ./ peakDelta;
+    peakAmplitude = max(waveform(finiteMask));
+    if isfinite(peakAmplitude) && peakAmplitude > 0
+        normalizedMatrix(finiteMask, eventIndex) = waveform(finiteMask) ./ peakAmplitude;
     end
 end
 end
@@ -687,6 +1050,28 @@ plot(ax, values, yValues, 'LineWidth', 1.8, 'Color', plotColor, 'DisplayName', d
 end
 
 function localSaveFigurePair(figureHandle, outputFolder, fileStem)
-savefig(figureHandle, fullfile(outputFolder, [fileStem '.fig']));
-exportgraphics(figureHandle, fullfile(outputFolder, [fileStem '.png']), 'Resolution', 180);
+if isempty(figureHandle) || ~isvalid(figureHandle)
+    warning('analyzePrimitiveEvents:InvalidFigureHandle', ...
+        'Skipping save for invalid figure handle: %s', fileStem);
+    return;
+end
+try
+    savefig(figureHandle, fullfile(outputFolder, [fileStem '.fig']));
+catch exception
+    warning('analyzePrimitiveEvents:SaveFigFailed', ...
+        'Could not save FIG for %s: %s', fileStem, exception.message);
+end
+
+if isempty(figureHandle) || ~isvalid(figureHandle)
+    warning('analyzePrimitiveEvents:InvalidFigureHandleAfterSaveFig', ...
+        'Skipping PNG export for invalid figure handle: %s', fileStem);
+    return;
+end
+
+try
+    exportgraphics(figureHandle, fullfile(outputFolder, [fileStem '.png']), 'Resolution', 180);
+catch exception
+    warning('analyzePrimitiveEvents:ExportGraphicsFailed', ...
+        'Could not export PNG for %s: %s', fileStem, exception.message);
+end
 end

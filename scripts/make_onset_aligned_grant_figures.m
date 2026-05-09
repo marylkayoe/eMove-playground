@@ -18,12 +18,20 @@ scratchRoot = fullfile(repoRoot, 'scratch', 'unitary_event_validation_20260508')
 outputRoot = fullfile(scratchRoot, 'outputs');
 tableRoot = fullfile(scratchRoot, 'tables');
 workspacePath = fullfile(scratchRoot, 'grant_revised_bout_shape_workspace.mat');
+if ~isfolder(outputRoot)
+    mkdir(outputRoot);
+end
+if ~isfolder(tableRoot)
+    mkdir(tableRoot);
+end
 
 addpath(fullfile(repoRoot, 'CODE', 'ACCELEROMETER'));
 addpath(fullfile(repoRoot, 'CODE', 'ANALYSIS'));
 
-magnitudeRoot = '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES';
-rawRoot = '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED';
+magnitudeRoot = LF_resolveFolder({ ...
+    '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES', ...
+    '/Users/yoe/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES', ...
+    '/Users/yoe/Library/CloudStorage/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES'});
 
 loadedData = load(workspacePath, 'settings', 'boutTable', 'subpeakTable', 'intervalTable');
 settings = loadedData.settings;
@@ -45,7 +53,7 @@ fprintf('Building onset-aligned snippets from %d revised bouts.\n', height(boutT
 for boutIndex = 1:height(boutTable)
     row = boutTable(boutIndex, :);
     fileName = char(row.fileName);
-    fileContext = LF_getCachedContext(fileName, contextCache, magnitudeRoot, rawRoot, settings);
+    fileContext = LF_getCachedContext(fileName, contextCache, magnitudeRoot, settings);
 
     if isempty(relativeTimeSec)
         relativeSamples = round(plotWindowSeconds(1) .* fileContext.samplingFrequency): ...
@@ -103,7 +111,7 @@ LF_makeOnsetSummaryFigure(relativeTimeSec, eventSignalSnippets, envelopeSnippets
     snippetMetadataTable, onsetBoutTable, intervalTable, outputRoot);
 
 selectedFileName = LF_chooseSingleTrial(onsetBoutTable, magnitudeRoot);
-fileContext = LF_getCachedContext(selectedFileName, contextCache, magnitudeRoot, rawRoot, settings);
+fileContext = LF_getCachedContext(selectedFileName, contextCache, magnitudeRoot, settings);
 LF_makeSingleTrialTraceFigure(fileContext, onsetBoutTable, subpeakTable, selectedFileName, outputRoot);
 LF_makePeakOnlyExampleTraceFigure(fileContext, onsetBoutTable, subpeakTable, selectedFileName, outputRoot);
 LF_makeLongScaleExampleTraceFigure(fileContext, onsetBoutTable, subpeakTable, selectedFileName, outputRoot);
@@ -130,22 +138,19 @@ save(fullfile(scratchRoot, 'grant_onset_aligned_workspace.mat'), ...
 
 fprintf('Saved onset-aligned grant figures. Selected trace trial: %s\n', selectedFileName);
 
-function fileContext = LF_getCachedContext(fileName, contextCache, magnitudeRoot, rawRoot, settings)
+function fileContext = LF_getCachedContext(fileName, contextCache, magnitudeRoot, settings)
 if isKey(contextCache, fileName)
     fileContext = contextCache(fileName);
 else
-    fileContext = LF_buildFileContext(fileName, magnitudeRoot, rawRoot, settings);
+    fileContext = LF_buildFileContext(fileName, magnitudeRoot, settings);
     contextCache(fileName) = fileContext;
 end
 end
 
-function fileContext = LF_buildFileContext(fileName, magnitudeRoot, rawRoot, settings)
+function fileContext = LF_buildFileContext(fileName, magnitudeRoot, settings)
 magnitudePath = fullfile(magnitudeRoot, fileName);
-rawPath = fullfile(rawRoot, replace(fileName, '_motionEnvelope.mat', '.mat'));
 loadedMagnitude = load(magnitudePath, 'motionData');
-loadedRaw = load(rawPath, 'accData');
 motionData = loadedMagnitude.motionData;
-accData = loadedRaw.accData;
 samplingFrequency = motionData.meta.sampleRateHz;
 
 existingFigures = findall(0, 'Type', 'figure');
@@ -176,10 +181,17 @@ fileContext.eventSignal = eventOutput.noiseEstimate.eventSignal(:);
 fileContext.noiseSigma = eventOutput.noiseEstimate.noiseSigma(:);
 fileContext.lowThreshold = settings.lowThresholdSigma .* median(fileContext.noiseSigma, 'omitnan');
 fileContext.eventTable = eventOutput.eventTable;
-
-if isfield(accData, 'timeSec')
-    fileContext.rawTimeSec = accData.timeSec(:);
 end
+
+function folderPath = LF_resolveFolder(candidateFolders)
+for folderIndex = 1:numel(candidateFolders)
+    candidateFolder = candidateFolders{folderIndex};
+    if isfolder(candidateFolder)
+        folderPath = candidateFolder;
+        return;
+    end
+end
+error('Could not find any candidate folder:\n%s', strjoin(string(candidateFolders), newline));
 end
 
 function fileInfo = LF_parseWasedaFileName(fileName)

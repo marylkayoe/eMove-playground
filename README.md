@@ -64,6 +64,15 @@ Current tracked entry points:
   - `scripts/make_waseda_departure_metric_cdfs.m`
 - metric-vs-time scatter summaries:
   - `scripts/make_waseda_event_metric_scatter_vs_time.m`
+- primitive event-class pipeline:
+  - `CODE/ACCELEROMETER/analyzePrimitiveEvents.m`
+  - `scripts/run_waseda_event_class_pipeline.m`
+
+Current promoted Waseda event-class figures:
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_event_class_grouped_mean_waveforms.png`
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_cdfs_by_condition_and_event_class.png`
+- `figures/WASEDA_ACC_EVENT_CLASSES_20260508/primitive_event_class_pipeline_cdfs_by_subject_and_event_class.png`
+- each promoted PNG has a matching MATLAB `.fig` file in the same folder
 
 Current output policy:
 - generated Waseda outputs should go to `scratch/waseda_acc_matlab/...`
@@ -77,6 +86,15 @@ Current output policy:
   - `/Users/yoe/Library/CloudStorage/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES/`
   - if I am invoked on another computer, check this Dropbox location first
     before rebuilding the chest motion-envelope MAT files
+
+To regenerate the current unitary/compound event-class figures, run:
+
+```zsh
+/Applications/MATLAB_R2024b.app/bin/matlab -batch "run('scripts/run_waseda_event_class_pipeline.m')"
+```
+
+If the Dropbox path differs on another computer, set
+`WASEDA_ACC_MAGNITUDES` to the local magnitude-folder path before running.
 
 Current derived-data structure:
 - `NORMALIZED-CSV` is the condition-specific copy layer for WTAcc CSVs

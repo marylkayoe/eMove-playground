@@ -16,12 +16,22 @@ repoRoot = fileparts(fileparts(scriptPath));
 scratchRoot = fullfile(repoRoot, 'scratch', 'unitary_event_validation_20260508');
 outputRoot = fullfile(scratchRoot, 'outputs');
 tableRoot = fullfile(scratchRoot, 'tables');
+if ~isfolder(outputRoot)
+    mkdir(outputRoot);
+end
+if ~isfolder(tableRoot)
+    mkdir(tableRoot);
+end
 
 addpath(fullfile(repoRoot, 'CODE', 'ACCELEROMETER'));
 addpath(fullfile(repoRoot, 'CODE', 'ANALYSIS'));
 
-magnitudeRoot = '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES';
-rawRoot = '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED';
+magnitudeRoot = LF_resolveFolder({ ...
+    '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/MAGNITUDES', ...
+    '/Users/yoe/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES', ...
+    '/Users/yoe/Library/CloudStorage/Dropbox/WORK/Data/Waseda-ACC/MAGNITUDES'});
+rawRoot = LF_resolveOptionalFolder({ ...
+    '/Users/yoe/Documents/DATA/Waseda-ACC/MATLAB-CONVERTED/CONCATENATED'});
 
 settings = struct();
 settings.baselineWindowSeconds = 15;
@@ -146,21 +156,10 @@ fprintf('Grant event shape and interval visualization complete.\n');
 
 function fileContext = LF_buildFileContext(fileName, magnitudeRoot, rawRoot, settings)
 magnitudePath = fullfile(magnitudeRoot, fileName);
-rawPath = fullfile(rawRoot, replace(fileName, '_motionEnvelope.mat', '.mat'));
 loadedMagnitude = load(magnitudePath, 'motionData');
-loadedRaw = load(rawPath, 'accData');
 motionData = loadedMagnitude.motionData;
-accData = loadedRaw.accData;
 samplingFrequency = motionData.meta.sampleRateHz;
-
-imuPrepared = prepareAccelerometerQuaternionData(accData, ...
-    'AccelerationUnit', 'auto', ...
-    'QuaternionOrder', 'wxyz', ...
-    'QuaternionJumpMaxDeg', settings.quaternionJumpMaxDeg, ...
-    'MakeQcPlots', false);
-imuCorrected = removeGravityFromPreparedImu(imuPrepared, ...
-    'UseConjugate', settings.useConjugate, ...
-    'MakeQcPlots', false);
+linearMagnitude = LF_getLinearMagnitude(motionData, fileName, rawRoot, settings);
 
 existingFigures = findall(0, 'Type', 'figure');
 eventOutput = extractEnvelopeEvents(motionData.motionEnvelope, samplingFrequency, ...
@@ -184,8 +183,60 @@ fileContext.timeSec = motionData.timeSec(:);
 fileContext.motionEnvelope = motionData.motionEnvelope(:);
 fileContext.eventSignal = eventOutput.noiseEstimate.eventSignal(:);
 fileContext.noiseSigma = eventOutput.noiseEstimate.noiseSigma(:);
-fileContext.linearMagnitude = sqrt(sum(imuCorrected.acc.linear.^2, 2));
+fileContext.linearMagnitude = linearMagnitude(:);
 fileContext.eventTable = eventOutput.eventTable;
+end
+
+function folderPath = LF_resolveFolder(candidateFolders)
+for folderIndex = 1:numel(candidateFolders)
+    candidateFolder = candidateFolders{folderIndex};
+    if isfolder(candidateFolder)
+        folderPath = candidateFolder;
+        return;
+    end
+end
+error('Could not find any candidate folder:\n%s', strjoin(string(candidateFolders), newline));
+end
+
+function folderPath = LF_resolveOptionalFolder(candidateFolders)
+folderPath = "";
+for folderIndex = 1:numel(candidateFolders)
+    candidateFolder = candidateFolders{folderIndex};
+    if isfolder(candidateFolder)
+        folderPath = string(candidateFolder);
+        return;
+    end
+end
+end
+
+function linearMagnitude = LF_getLinearMagnitude(motionData, fileName, rawRoot, settings)
+if strlength(string(rawRoot)) > 0
+    rawPath = fullfile(char(rawRoot), replace(fileName, '_motionEnvelope.mat', '.mat'));
+    if isfile(rawPath)
+        loadedRaw = load(rawPath, 'accData');
+        imuPrepared = prepareAccelerometerQuaternionData(loadedRaw.accData, ...
+            'AccelerationUnit', 'auto', ...
+            'QuaternionOrder', 'wxyz', ...
+            'QuaternionJumpMaxDeg', settings.quaternionJumpMaxDeg, ...
+            'MakeQcPlots', false);
+        imuCorrected = removeGravityFromPreparedImu(imuPrepared, ...
+            'UseConjugate', settings.useConjugate, ...
+            'MakeQcPlots', false);
+        linearMagnitude = sqrt(sum(imuCorrected.acc.linear.^2, 2));
+        return;
+    end
+end
+
+if isfield(motionData, 'gravityCorrectedAcc')
+    linearAcceleration = motionData.gravityCorrectedAcc;
+    if isstruct(linearAcceleration) && isfield(linearAcceleration, 'linear')
+        linearAcceleration = linearAcceleration.linear;
+    end
+    linearMagnitude = sqrt(sum(linearAcceleration.^2, 2));
+    return;
+end
+
+error('No raw converted MAT file or motionData.gravityCorrectedAcc available for %s.', fileName);
 end
 
 function fileInfo = LF_parseWasedaFileName(fileName)

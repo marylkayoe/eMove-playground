@@ -32,7 +32,9 @@ function [figureHandle, plotOutput] = plotEnvelopeEventsWithNoiseBand(magnitudeF
 %   'CompoundValleyFraction'           default 0.50
 %   'MarkerOffsetFraction'             default 0.035
 %   'ShowSlowEnvelope'                 default true
+%   'ShowLongEnvelopeMeanPanel'        default true
 %   'SlowEnvelopeWindowSeconds'        default 10
+%   'LongEnvelopeWindowSeconds'        default 300
 %   'ShowSlowEnvelopeBand'             default true
 %   'SlowEnvelopeBandScale'            default 1
 %   'ShowSlowEnvelopeChangePoints'     default true
@@ -120,7 +122,25 @@ addParameter(inputParserObject, 'MarkerOffsetFraction', 0.035, ...
 addParameter(inputParserObject, 'ShowSlowEnvelope', true, ...
     @(value) islogical(value) || isnumeric(value));
 
+addParameter(inputParserObject, 'ShowMotionEnvelopePanel', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'ShowNoiseBand', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'ShowEnvelopeThreshold', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'ShowPeakMarkers', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
+addParameter(inputParserObject, 'ShowLongEnvelopeMeanPanel', true, ...
+    @(value) islogical(value) || isnumeric(value));
+
 addParameter(inputParserObject, 'SlowEnvelopeWindowSeconds', 10, ...
+    @(value) isnumeric(value) && isscalar(value) && value > 0);
+
+addParameter(inputParserObject, 'LongEnvelopeWindowSeconds', 300, ...
     @(value) isnumeric(value) && isscalar(value) && value > 0);
 
 addParameter(inputParserObject, 'ShowSlowEnvelopeBand', true, ...
@@ -246,7 +266,7 @@ if ~any(windowMask)
 end
 
 [windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual, ...
-    slowEnvelope, slowEnvelopeMad, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
+    slowEnvelope, slowEnvelopeMad, longEnvelopeMean, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
     envelopeThreshold, eventOutput.noiseEstimate.eventSignal, eventOutput.noiseEstimate.residual, ...
     windowRanges, windowStartSec, samplingFrequency, options);
 
@@ -258,47 +278,53 @@ figureHandle = figure('Color', 'w', 'Visible', 'on', ...
 
 showWavelet = logical(options.ShowWavelet);
 showBandPower = logical(options.ShowWaveletBandPower);
-showStacked = showWavelet || showBandPower;
+showMotionPanel = logical(options.ShowMotionEnvelopePanel);
+showSlowPanel = logical(options.ShowSlowEnvelope);
+showLongMeanPanel = logical(options.ShowLongEnvelopeMeanPanel);
+panelCount = showMotionPanel + showSlowPanel + showLongMeanPanel + showBandPower + showWavelet;
 
-if showStacked
-    panelCount = 1 + (2 * showWavelet) + showBandPower;
+tiledLayoutHandle = [];
+axesHandle = [];
+slowAxesHandle = [];
+longMeanAxesHandle = [];
+bandPowerAxesHandle = [];
+waveletAxesHandle = [];
+if panelCount > 1
     tiledLayoutHandle = tiledlayout(figureHandle, panelCount, 1, ...
         'TileSpacing', 'compact', ...
         'Padding', 'compact');
-    axesHandle = nexttile(tiledLayoutHandle, 1);
-    slowAxesHandle = [];
-    bandPowerAxesHandle = [];
-    waveletAxesHandle = [];
-    if showWavelet && showBandPower
-        slowAxesHandle = nexttile(tiledLayoutHandle, 2);
-        bandPowerAxesHandle = nexttile(tiledLayoutHandle, 3);
-        waveletAxesHandle = nexttile(tiledLayoutHandle, 4);
-    elseif showWavelet
-        slowAxesHandle = nexttile(tiledLayoutHandle, 2);
-        waveletAxesHandle = nexttile(tiledLayoutHandle, 3);
-    else
-        bandPowerAxesHandle = nexttile(tiledLayoutHandle, 2);
+    if showMotionPanel
+        axesHandle = nexttile(tiledLayoutHandle);
+    end
+    if showSlowPanel
+        slowAxesHandle = nexttile(tiledLayoutHandle);
+    end
+    if showLongMeanPanel
+        longMeanAxesHandle = nexttile(tiledLayoutHandle);
+    end
+    if showBandPower
+        bandPowerAxesHandle = nexttile(tiledLayoutHandle);
+    end
+    if showWavelet
+        waveletAxesHandle = nexttile(tiledLayoutHandle);
     end
 else
-    tiledLayoutHandle = [];
-    axesHandle = axes(figureHandle);
-    slowAxesHandle = [];
-    bandPowerAxesHandle = [];
-    waveletAxesHandle = [];
+    if showMotionPanel
+        axesHandle = axes(figureHandle);
+    elseif showSlowPanel
+        slowAxesHandle = axes(figureHandle);
+    elseif showLongMeanPanel
+        longMeanAxesHandle = axes(figureHandle);
+    elseif showBandPower
+        bandPowerAxesHandle = axes(figureHandle);
+    else
+        waveletAxesHandle = axes(figureHandle);
+    end
 end
-hold(axesHandle, 'on');
 
-yLimitTop = localChooseYLimitTop(windowEnvelope, windowThreshold);
-localPlotNoiseBand(axesHandle, windowTimeSec, windowThreshold, yLimitTop);
-plot(axesHandle, windowTimeSec, windowEnvelope, ...
-    'Color', [0.02 0.02 0.02], ...
-    'LineWidth', 0.85, ...
-    'DisplayName', 'motion envelope');
-plot(axesHandle, windowTimeSec, windowThreshold, ...
-    'Color', [0.45 0.45 0.45], ...
-    'LineStyle', '--', ...
-    'LineWidth', 1.0, ...
-    'DisplayName', sprintf('local threshold (%.1f sigma)', options.ThresholdSigma));
+if ~isempty(axesHandle)
+    hold(axesHandle, 'on');
+end
 
 eventTable = eventOutput.eventTable;
 [unitaryPeakRows, compoundSubpeakRows] = localBuildPeakTables(eventTable, timeSec, motionEnvelope);
@@ -311,34 +337,54 @@ if size(windowRanges, 1) > 1
     compoundSubpeakRows = compoundSubpeakRows(localIsInWindows(compoundSubpeakRows.timeSec, windowRanges), :);
 end
 
-markerOffset = options.MarkerOffsetFraction .* yLimitTop;
-localPlotPeakDots(axesHandle, unitaryPeakRows, windowStartSec, markerOffset, yLimitTop, ...
-    [0.05 0.35 0.70], 'unitary peak');
-localPlotPeakDots(axesHandle, compoundSubpeakRows, windowStartSec, markerOffset, yLimitTop, ...
-    [0.80 0.30 0.10], 'compound subpeaks');
+if showMotionPanel && ~isempty(axesHandle)
+    yLimitTop = localChooseYLimitTop(windowEnvelope, windowThreshold);
+    if logical(options.ShowNoiseBand)
+        localPlotNoiseBand(axesHandle, windowTimeSec, windowThreshold, yLimitTop);
+    end
+    plot(axesHandle, windowTimeSec, windowEnvelope, ...
+        'Color', [0.02 0.02 0.02], ...
+        'LineWidth', 0.85, ...
+        'DisplayName', 'motion envelope');
+    if logical(options.ShowEnvelopeThreshold)
+        plot(axesHandle, windowTimeSec, windowThreshold, ...
+            'Color', [0.45 0.45 0.45], ...
+            'LineStyle', '--', ...
+            'LineWidth', 1.0, ...
+            'DisplayName', sprintf('local threshold (%.1f sigma)', options.ThresholdSigma));
+    end
 
-ylim(axesHandle, [0 yLimitTop]);
-xlim(axesHandle, [min(windowTimeSec) max(windowTimeSec)]);
-grid(axesHandle, 'on');
-if size(windowRanges, 1) == 1
-    xlabel(axesHandle, sprintf('time within %.0f-%.0f s segment (s)', windowStartSec, windowEndSec));
-else
-    xlabel(axesHandle, 'time within selected segments (s)');
+    if logical(options.ShowPeakMarkers)
+        markerOffset = options.MarkerOffsetFraction .* yLimitTop;
+        localPlotPeakDots(axesHandle, unitaryPeakRows, windowStartSec, markerOffset, yLimitTop, ...
+            [0.05 0.35 0.70], 'unitary peak');
+        localPlotPeakDots(axesHandle, compoundSubpeakRows, windowStartSec, markerOffset, yLimitTop, ...
+            [0.80 0.30 0.10], 'compound subpeaks');
+    end
+
+    ylim(axesHandle, [0 yLimitTop]);
+    xlim(axesHandle, [min(windowTimeSec) max(windowTimeSec)]);
+    grid(axesHandle, 'on');
+    if size(windowRanges, 1) == 1
+        xlabel(axesHandle, sprintf('time within %.0f-%.0f s segment (s)', windowStartSec, windowEndSec));
+    else
+        xlabel(axesHandle, 'time within selected segments (s)');
+    end
+    ylabel(axesHandle, 'motion envelope');
+
+    if strlength(string(options.FigureTitle)) > 0
+        title(axesHandle, options.FigureTitle, 'Interpreter', 'none', 'FontWeight', 'normal');
+    else
+        [~, fileStem, ~] = fileparts(magnitudeFilePath);
+        title(axesHandle, sprintf('Motion envelope with event peaks: %s', fileStem), ...
+            'Interpreter', 'none', 'FontWeight', 'normal');
+    end
+
+    legend(axesHandle, 'Location', 'northoutside', 'Orientation', 'horizontal', 'Box', 'off');
 end
-ylabel(axesHandle, 'motion envelope');
-
-if strlength(string(options.FigureTitle)) > 0
-    title(axesHandle, options.FigureTitle, 'Interpreter', 'none', 'FontWeight', 'normal');
-else
-    [~, fileStem, ~] = fileparts(magnitudeFilePath);
-    title(axesHandle, sprintf('Motion envelope with event peaks: %s', fileStem), ...
-        'Interpreter', 'none', 'FontWeight', 'normal');
-end
-
-legend(axesHandle, 'Location', 'northoutside', 'Orientation', 'horizontal', 'Box', 'off');
 
 if isempty(slowAxesHandle)
-    if logical(options.ShowSlowEnvelope)
+    if logical(options.ShowSlowEnvelope) && ~isempty(axesHandle)
         if logical(options.ShowSlowEnvelopeBand)
             localPlotSlowEnvelopeBand(axesHandle, windowTimeSec, slowEnvelope, slowEnvelopeMad, options);
         end
@@ -367,6 +413,17 @@ else
     ylabel(slowAxesHandle, 'slow envelope');
 end
 
+if ~isempty(longMeanAxesHandle)
+    hold(longMeanAxesHandle, 'on');
+    plot(longMeanAxesHandle, windowTimeSec, longEnvelopeMean, ...
+        'Color', [0.10 0.35 0.65], ...
+        'LineWidth', 1.8, ...
+        'DisplayName', sprintf('long-window mean (%.0f s)', options.LongEnvelopeWindowSeconds));
+    xlim(longMeanAxesHandle, [min(windowTimeSec) max(windowTimeSec)]);
+    grid(longMeanAxesHandle, 'on');
+    ylabel(longMeanAxesHandle, 'long-window mean');
+end
+
 waveletOutput = struct();
 if showWavelet
     waveletAxes = waveletAxesHandle;
@@ -380,14 +437,22 @@ if showWavelet
         options.WaveletColorPercentile, logical(options.ShowWaveletEventLines), ...
         unitaryPeakRows, compoundSubpeakRows, windowStartSec, options.WaveletSource, ...
         options.WaveletBandPowerHz);
-    linkAxesList = [axesHandle waveletAxes];
+    linkAxesList = waveletAxes;
+    if ~isempty(axesHandle)
+        linkAxesList = [linkAxesList axesHandle];
+    end
     if ~isempty(slowAxesHandle)
         linkAxesList = [linkAxesList slowAxesHandle];
+    end
+    if ~isempty(longMeanAxesHandle)
+        linkAxesList = [linkAxesList longMeanAxesHandle];
     end
     if showBandPower && ~isempty(bandPowerAxesHandle)
         linkAxesList = [linkAxesList bandPowerAxesHandle];
     end
-    linkaxes(linkAxesList, 'x');
+    if numel(linkAxesList) > 1
+        linkaxes(linkAxesList, 'x');
+    end
     xlim(waveletAxes, [min(windowTimeSec) max(windowTimeSec)]);
 end
 
@@ -423,6 +488,7 @@ plotOutput.unitaryPeakRows = unitaryPeakRows;
 plotOutput.compoundSubpeakRows = compoundSubpeakRows;
 plotOutput.slowEnvelope = slowEnvelope;
 plotOutput.slowEnvelopeMad = slowEnvelopeMad;
+plotOutput.longEnvelopeMean = longEnvelopeMean;
 plotOutput.slowEnvelopeChangePointTimes = changePointTimes;
 plotOutput.waveletBandPower = localExtractWaveletBandPowerSummary(waveletOutput);
 plotOutput.figureHandle = figureHandle;
@@ -463,7 +529,7 @@ patch(axesHandle, [windowTimeSec(:); flipud(windowTimeSec(:))], ...
 end
 
 function [windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual, ...
-    slowEnvelope, slowEnvelopeMad, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
+    slowEnvelope, slowEnvelopeMad, longEnvelopeMean, changePointTimes] = localCollectWindowSegments(timeSec, motionEnvelope, ...
     envelopeThreshold, eventSignal, residualSignal, windowRanges, windowStartSec, samplingFrequency, options)
 
 segmentCount = size(windowRanges, 1);
@@ -474,6 +540,7 @@ eventSignalCells = cell(segmentCount, 1);
 residualCells = cell(segmentCount, 1);
 slowEnvelopeCells = cell(segmentCount, 1);
 slowMadCells = cell(segmentCount, 1);
+longMeanCells = cell(segmentCount, 1);
 changePointTimes = [];
 
 for segmentIndex = 1:segmentCount
@@ -492,6 +559,7 @@ for segmentIndex = 1:segmentCount
     residualCells{segmentIndex} = residualSignal(segmentMask);
     [slowEnvelopeCells{segmentIndex}, slowMadCells{segmentIndex}] = ...
         localComputeSlowEnvelopeStats(envelopeCells{segmentIndex}, samplingFrequency, options);
+    longMeanCells{segmentIndex} = localComputeLongEnvelopeMean(envelopeCells{segmentIndex}, samplingFrequency, options);
     changePointTimes = [changePointTimes; ...
         localFindSlowEnvelopeChangePoints(timeCells{segmentIndex}, slowMadCells{segmentIndex}, ...
         samplingFrequency, options)]; %#ok<AGROW>
@@ -499,9 +567,21 @@ end
 
 [windowTimeSec, windowEnvelope, windowThreshold, windowEventSignal, windowResidual] = ...
     localConcatenateSegments(timeCells, envelopeCells, thresholdCells, eventSignalCells, residualCells);
-[~, slowEnvelope, slowEnvelopeMad] = ...
-    localConcatenateSegments(timeCells, slowEnvelopeCells, slowMadCells);
+[~, slowEnvelope, slowEnvelopeMad, longEnvelopeMean] = ...
+    localConcatenateSegments(timeCells, slowEnvelopeCells, slowMadCells, longMeanCells);
 changePointTimes = sort(changePointTimes(:));
+end
+
+function longEnvelopeMean = localComputeLongEnvelopeMean(windowEnvelope, samplingFrequency, options)
+if ~logical(options.ShowLongEnvelopeMeanPanel)
+    longEnvelopeMean = nan(size(windowEnvelope));
+    return;
+end
+
+windowSamples = max(3, round(options.LongEnvelopeWindowSeconds .* samplingFrequency));
+windowSamples = min(windowSamples, max(3, numel(windowEnvelope)));
+longEnvelopeMean = movmean(windowEnvelope, windowSamples, 'omitnan');
+longEnvelopeMean = longEnvelopeMean(:);
 end
 
 function [windowRanges, windowStartSec, windowEndSec] = localBuildWindowRanges(timeSec, windowSeconds, windowSeconds2)

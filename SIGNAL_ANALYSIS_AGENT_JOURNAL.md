@@ -1,5 +1,37 @@
 # Signal Analysis Agent Journal
 
+## 2026-07-04 18:30:00 Europe/Amsterdam
+
+- User explicitly corrected the Emovere visualization workflow:
+  - do not keep reopening the question of whether residual wavelets belong
+    in the visualization
+  - do not create ad hoc scratch-only wrappers for this recurring task
+  - the accepted residual-wavelet visualization path is
+    `plotEnvelopeEventsWithNoiseBand(..., 'WaveletSource', 'residual')`
+- Implementation note:
+  - `CODE/ACCELEROMETER/createEmovereSessionVisualizations.m` is now the
+    standard function for an Emovere export folder
+  - it adapts `lar_diagnostics.motion_score` into the existing `motionData`
+    contract, then delegates plotting to `plotEnvelopeEventsWithNoiseBand`
+  - CWT-facing data are resampled to a median-step uniform time grid by
+    default because wavelet analysis assumes regular sampling
+- Process correction:
+  - future Emovere session visualization work should start from
+    `createEmovereSessionVisualizations(sessionFolder)`, not from a new
+    one-off script
+  - if the visualization needs to change, change the reusable function or
+    the accepted plotting function, and document the reason
+- Follow-up design correction:
+  - the default Emovere output is now a recorded-trial review page rather
+    than the full repeated diagnostic stack
+  - the review page has three distinct layers only:
+    1. motion envelope / LAR-regime context
+    2. detector residual / accepted events
+    3. accepted residual CWT from `plotEnvelopeEventsWithNoiseBand`
+  - slow envelope, long-window mean, and CWT band-power panels are useful
+    algorithm diagnostics, but they are not the default recorded-trial review
+    surface
+
 ## 2026-05-08 00:15:00 JST
 
 - User raised an important scientific concern before moving the thread to a
